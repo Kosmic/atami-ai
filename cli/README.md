@@ -1,28 +1,58 @@
 # atami CLI
 
-This directory will contain the source for the `atami` CLI tool.
+The `atami` command-line tool for managing project-kb in Atami team projects.
 
-## Planned commands
+## Status
 
-```
-atami kb init                  # Scaffold project-kb into the current project
-atami kb process               # Process the inbox
-atami kb release --week        # Generate weekly release notes
-atami kb release --month       # Generate monthly release notes
-atami kb release --item <slug> # Generate release note for a single item
-atami kb output <slug> --for <role>  # Generate shareable output
-atami kb status                # Show items index summary
+Phase 1 currently implements only `atami kb init`. The command structure is set up so `atami skills` and additional `atami kb` commands can be added in later phases.
 
-atami skills pull              # Refresh synced skills (KB and team skills)
-atami skills pull --kb-only    # Only refresh KB skills
-atami skills list              # Show available skill domains
-atami skills diff <skill>      # Diff local override against canonical version
+## Building
+
+From inside `cli/`:
+
+```sh
+go build -o atami .
 ```
 
-## Behaviour notes
+This produces an `atami` binary in the current directory. To install it on your PATH:
 
-- `kb init` copies `project-kb/template/` and `project-kb/skills/` from the atami-ai repo into the target project's `.project-kb/` directory, then appends the `AGENTS.md.snippet` to the project's `AGENTS.md` (creating it if missing).
-- `skills pull` refreshes files in `.project-kb/skills/` only — it never touches `.project-kb/skills/overrides/`.
-- The CLI should detect hand-edits to synced files (via stored hashes) and warn before overwriting.
+```sh
+go install .
+```
 
-Currently empty. Implementation TBD.
+## Usage
+
+### Initialise project-kb in a project
+
+From inside the project's root directory:
+
+```sh
+atami kb init --name "My Project" --description "Brief description for LLM context"
+```
+
+This will:
+
+1. Create a `.project-kb/` directory with the standard structure.
+2. Sync the canonical skill files from the atami-ai shared repo.
+3. Append a project-kb section to your `AGENTS.md` (creating it if missing).
+
+If `.project-kb/` already exists, the command will refuse to run unless you pass `--force`.
+
+### Locating the atami-ai repo
+
+The CLI needs to know where the `atami-ai` shared repo lives on your machine. It checks these locations in order:
+
+1. The `--template-source` flag if provided.
+2. The `ATAMI_AI_PATH` environment variable.
+3. `~/atami-ai/`
+4. `~/code/atami-ai/`
+5. `~/Code/atami-ai/`
+6. `~/dev/atami-ai/`
+
+If none of these work, set `ATAMI_AI_PATH` in your shell profile.
+
+## Tests
+
+```sh
+go test ./...
+```

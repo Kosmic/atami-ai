@@ -1,0 +1,1 @@
+# Test generate-output skill
