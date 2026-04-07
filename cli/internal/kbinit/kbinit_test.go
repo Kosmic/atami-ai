@@ -4,8 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/atami-ai/atami-ai/cli/internal/templatefs"
 	"gopkg.in/yaml.v3"
 )
 
@@ -290,6 +292,33 @@ func TestInit_SpecialCharactersInNameAndDescription(t *testing.T) {
 	}
 	if parsed.Project.Description != description {
 		t.Fatalf("unexpected description: got %q want %q", parsed.Project.Description, description)
+	}
+}
+
+func TestInit_CallsResolvedSourceCleanup(t *testing.T) {
+	targetDir := t.TempDir()
+	var cleanupCalls atomic.Int32
+
+	_, err := Initialize(Options{
+		TargetDir: targetDir,
+		ResolvePaths: func(string) (templatefs.ResolvedPaths, error) {
+			resolved := templatefs.ResolvedPaths{
+				RepoRoot:    fixtureRepoRoot(t),
+				TemplateDir: fixtureTemplateDir(t),
+				SkillsDir:   filepath.Join(fixtureRepoRoot(t), "project-kb", "skills"),
+				Cleanup: func() error {
+					cleanupCalls.Add(1)
+					return nil
+				},
+			}
+			return resolved, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Initialize returned error: %v", err)
+	}
+	if cleanupCalls.Load() != 1 {
+		t.Fatalf("expected cleanup to be called once, got %d", cleanupCalls.Load())
 	}
 }
 

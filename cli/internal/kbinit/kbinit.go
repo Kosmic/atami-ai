@@ -50,7 +50,7 @@ type Result struct {
 }
 
 // Initialize creates .project-kb in the target directory and syncs the canonical files.
-func Initialize(opts Options) (Result, error) {
+func Initialize(opts Options) (result Result, err error) {
 	if opts.TargetDir == "" {
 		return Result{}, fmt.Errorf("target directory is required")
 	}
@@ -62,6 +62,14 @@ func Initialize(opts Options) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("resolving template paths: %w", err)
 	}
+	defer func() {
+		if resolved.Cleanup == nil {
+			return
+		}
+		if cleanupErr := resolved.Cleanup(); cleanupErr != nil && err == nil {
+			err = fmt.Errorf("cleaning up resolved template source: %w", cleanupErr)
+		}
+	}()
 
 	targetProjectKB := filepath.Join(opts.TargetDir, ".project-kb")
 	if err := prepareTargetDirectory(targetProjectKB, opts.Force); err != nil {

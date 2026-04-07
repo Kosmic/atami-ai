@@ -24,6 +24,7 @@ type ResolvedPaths struct {
 	RepoRoot    string
 	TemplateDir string
 	SkillsDir   string
+	Cleanup     func() error
 }
 
 type resolverOptions struct {
@@ -73,6 +74,7 @@ func resolvePaths(explicitTemplate string, opts resolverOptions) (ResolvedPaths,
 			RepoRoot:    filepath.Dir(filepath.Dir(templateDir)),
 			TemplateDir: templateDir,
 			SkillsDir:   filepath.Join(filepath.Dir(filepath.Dir(templateDir)), "project-kb", "skills"),
+			Cleanup:     noopCleanup,
 		}
 
 		if err := validateResolvedPaths(resolved); err != nil {
@@ -123,6 +125,7 @@ func newResolvedPaths(repoRoot string) (ResolvedPaths, error) {
 		RepoRoot:    absRepoRoot,
 		TemplateDir: filepath.Join(absRepoRoot, "project-kb", "template"),
 		SkillsDir:   filepath.Join(absRepoRoot, "project-kb", "skills"),
+		Cleanup:     noopCleanup,
 	}, nil
 }
 
@@ -171,7 +174,7 @@ func fetchRemotePaths(cfg remoteConfig) (ResolvedPaths, error) {
 		cfg.mkdirTemp = os.MkdirTemp
 	}
 
-	repoRoot, err := downloadGitHubTarball(cfg)
+	repoRoot, tempRoot, err := downloadGitHubTarball(cfg)
 	if err != nil {
 		return ResolvedPaths{}, err
 	}
@@ -183,40 +186,43 @@ func fetchRemotePaths(cfg remoteConfig) (ResolvedPaths, error) {
 	if err := validateResolvedPaths(resolved); err != nil {
 		return ResolvedPaths{}, err
 	}
+	resolved.Cleanup = func() error {
+		return os.RemoveAll(tempRoot)
+	}
 	return resolved, nil
 }
 
-func downloadGitHubTarball(cfg remoteConfig) (string, error) {
+func downloadGitHubTarball(cfg remoteConfig) (string, string, error) {
 	tempDir, err := cfg.mkdirTemp("", "atami-source-*")
 	if err != nil {
-		return "", fmt.Errorf("creating temporary directory for remote source: %w", err)
+		return "", "", fmt.Errorf("creating temporary directory for remote source: %w", err)
 	}
 
 	url := strings.TrimRight(cfg.apiBaseURL, "/") + "/repos/" + cfg.owner + "/" + cfg.repo + "/tarball/" + cfg.ref
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return "", fmt.Errorf("creating GitHub archive request: %w", err)
+		return "", "", fmt.Errorf("creating GitHub archive request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "atami-cli")
 
 	resp, err := cfg.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("downloading GitHub archive: %w", err)
+		return "", "", fmt.Errorf("downloading GitHub archive: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		if readErr != nil {
-			return "", fmt.Errorf("GitHub archive request returned %s", resp.Status)
+			return "", "", fmt.Errorf("GitHub archive request returned %s", resp.Status)
 		}
-		return "", fmt.Errorf("GitHub archive request returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return "", "", fmt.Errorf("GitHub archive request returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	gzipReader, err := gzip.NewReader(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("opening downloaded archive: %w", err)
+		return "", "", fmt.Errorf("opening downloaded archive: %w", err)
 	}
 	defer gzipReader.Close()
 
@@ -229,7 +235,7 @@ func downloadGitHubTarball(cfg remoteConfig) (string, error) {
 			break
 		}
 		if err != nil {
-			return "", fmt.Errorf("reading downloaded archive: %w", err)
+			return "", "", fmt.Errorf("reading downloaded archive: %w", err)
 		}
 
 		name := strings.TrimPrefix(header.Name, "./")
@@ -252,38 +258,38 @@ func downloadGitHubTarball(cfg remoteConfig) (string, error) {
 			continue
 		}
 		if strings.HasPrefix(relativePath, "..") {
-			return "", fmt.Errorf("downloaded archive contains invalid path %q", header.Name)
+			return "", "", fmt.Errorf("downloaded archive contains invalid path %q", header.Name)
 		}
 
 		targetPath := filepath.Join(tempDir, repoPrefix, relativePath)
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode).Perm()); err != nil {
-				return "", fmt.Errorf("creating directory %q from archive: %w", targetPath, err)
+				return "", "", fmt.Errorf("creating directory %q from archive: %w", targetPath, err)
 			}
 		case tar.TypeReg, tar.TypeRegA:
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-				return "", fmt.Errorf("creating parent directory for %q: %w", targetPath, err)
+				return "", "", fmt.Errorf("creating parent directory for %q: %w", targetPath, err)
 			}
 			file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode).Perm())
 			if err != nil {
-				return "", fmt.Errorf("creating file %q from archive: %w", targetPath, err)
+				return "", "", fmt.Errorf("creating file %q from archive: %w", targetPath, err)
 			}
 			if _, err := io.Copy(file, tarReader); err != nil {
 				_ = file.Close()
-				return "", fmt.Errorf("writing file %q from archive: %w", targetPath, err)
+				return "", "", fmt.Errorf("writing file %q from archive: %w", targetPath, err)
 			}
 			if err := file.Close(); err != nil {
-				return "", fmt.Errorf("closing file %q from archive: %w", targetPath, err)
+				return "", "", fmt.Errorf("closing file %q from archive: %w", targetPath, err)
 			}
 		}
 	}
 
 	if repoPrefix == "" {
-		return "", fmt.Errorf("downloaded archive did not contain a repository root")
+		return "", "", fmt.Errorf("downloaded archive did not contain a repository root")
 	}
 
-	return filepath.Join(tempDir, repoPrefix), nil
+	return filepath.Join(tempDir, repoPrefix), tempDir, nil
 }
 
 func getenvOrDefault(lookup func(string) (string, bool), key string, fallback string) string {
@@ -291,6 +297,10 @@ func getenvOrDefault(lookup func(string) (string, bool), key string, fallback st
 		return value
 	}
 	return fallback
+}
+
+func noopCleanup() error {
+	return nil
 }
 
 func requireDir(path string, label string) error {
