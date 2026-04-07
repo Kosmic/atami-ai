@@ -79,6 +79,9 @@ func TestKbSkillsPull_Help(t *testing.T) {
 	if !strings.Contains(stdout, "Sync canonical project-kb skill files") {
 		t.Fatalf("kb skills pull help missing description:\n%s", stdout)
 	}
+	if !strings.Contains(stdout, "--force") {
+		t.Fatalf("kb skills pull help missing --force flag:\n%s", stdout)
+	}
 }
 
 func TestKbSkillsPull_UserErrorFormatting(t *testing.T) {
@@ -105,10 +108,18 @@ func TestKbSkillsPull_EndToEndHappyPath(t *testing.T) {
 		PullKBSkills: func(kbskillspull.Options) (kbskillspull.Result, error) {
 			return kbskillspull.Result{
 				TargetDir: cwd,
-				SyncedFiles: []string{
+				UpdatedFiles: []string{
 					".project-kb/skills/generate-output.md",
 					".project-kb/skills/process-inbox.md",
+				},
+				UnchangedFiles: []string{
 					".project-kb/skills/release-notes.md",
+				},
+				SkippedFiles: []kbskillspull.SkippedFile{
+					{
+						Path:   ".project-kb/skills/custom.md",
+						Reason: "local edits detected",
+					},
 				},
 			}, nil
 		},
@@ -122,7 +133,7 @@ func TestKbSkillsPull_EndToEndHappyPath(t *testing.T) {
 	}
 
 	expected := fmt.Sprintf(
-		"✓ Synced 3 project-kb skill files into .project-kb/skills/ in %s\n\nUpdated:\n  .project-kb/skills/generate-output.md\n  .project-kb/skills/process-inbox.md\n  .project-kb/skills/release-notes.md\n\nLeft untouched:\n  .project-kb/skills/overrides/\n",
+		"✓ Project-kb skills sync complete in %s\n\nUpdated: 2\nUnchanged: 1\nSkipped: 1\n\nUpdated:\n  .project-kb/skills/generate-output.md\n  .project-kb/skills/process-inbox.md\n\nUnchanged:\n  .project-kb/skills/release-notes.md\n\nSkipped:\n  .project-kb/skills/custom.md (local edits detected)\n\nNext step:\n  Re-run `atami kb skills pull --force` to overwrite skipped locally edited synced files.\n\nLeft untouched:\n  .project-kb/skills/overrides/\n",
 		cwd,
 	)
 	if stdout != expected {

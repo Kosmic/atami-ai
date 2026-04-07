@@ -1,6 +1,8 @@
 package kbskillspull
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +20,8 @@ const (
 	defaultGitHubRepo    = "atami-ai"
 	defaultGitHubRef     = "main"
 	skillsAPIPath        = "project-kb/skills"
+	stateDirName         = ".atami"
+	stateFileName        = "kb-skills-state.json"
 )
 
 // Options configures a targeted pull of canonical project-kb skill files.
@@ -28,18 +32,42 @@ type Options struct {
 	Repo       string
 	Ref        string
 	HTTPClient *http.Client
+	Force      bool
 }
 
-// Result describes the files synced by a skills pull.
+// Result describes the files processed by a skills pull.
 type Result struct {
-	TargetDir   string
-	SyncedFiles []string
+	TargetDir      string
+	UpdatedFiles   []string
+	UnchangedFiles []string
+	SkippedFiles   []SkippedFile
+}
+
+// SkippedFile records a file that was not overwritten during pull.
+type SkippedFile struct {
+	Path   string
+	Reason string
 }
 
 type contentEntry struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	DownloadURL string `json:"download_url"`
+}
+
+type syncState struct {
+	Source stateSource              `json:"source"`
+	Files  map[string]stateFileInfo `json:"files"`
+}
+
+type stateSource struct {
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+	Ref   string `json:"ref"`
+}
+
+type stateFileInfo struct {
+	SyncedSHA256 string `json:"synced_sha256"`
 }
 
 // Pull refreshes the canonical project-kb skill files in .project-kb/skills.
@@ -67,24 +95,97 @@ func Pull(opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("creating .project-kb/skills directory: %w", err)
 	}
 
+	statePath := filepath.Join(projectKBPath, stateDirName, stateFileName)
+	state, err := loadState(statePath)
+	if err != nil {
+		return Result{}, err
+	}
+
 	entries, err := listRemoteSkillFiles(opts)
 	if err != nil {
 		return Result{}, err
 	}
 
-	var synced []string
+	result := Result{TargetDir: opts.TargetDir}
 	for _, entry := range entries {
 		targetPath := filepath.Join(targetSkillsDir, entry.Name)
-		if err := downloadFile(opts.HTTPClient, entry.DownloadURL, targetPath); err != nil {
+		relativePath := filepath.ToSlash(filepath.Join(".project-kb", "skills", entry.Name))
+
+		remoteContent, err := fetchFileContent(opts.HTTPClient, entry.DownloadURL)
+		if err != nil {
 			return Result{}, fmt.Errorf("downloading %s: %w", entry.Name, err)
 		}
-		synced = append(synced, filepath.ToSlash(filepath.Join(".project-kb", "skills", entry.Name)))
+		remoteHash := sha256Hex(remoteContent)
+
+		fileState, tracked := state.Files[entry.Name]
+		localContent, localExists, err := readFileIfExists(targetPath)
+		if err != nil {
+			return Result{}, fmt.Errorf("reading local skill file %q: %w", targetPath, err)
+		}
+
+		switch {
+		case !tracked:
+			if err := writeContent(targetPath, remoteContent); err != nil {
+				return Result{}, fmt.Errorf("writing %s: %w", entry.Name, err)
+			}
+			result.UpdatedFiles = append(result.UpdatedFiles, relativePath)
+			state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+		case !localExists:
+			if opts.Force {
+				if err := writeContent(targetPath, remoteContent); err != nil {
+					return Result{}, fmt.Errorf("writing %s: %w", entry.Name, err)
+				}
+				result.UpdatedFiles = append(result.UpdatedFiles, relativePath)
+				state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+				continue
+			}
+			result.SkippedFiles = append(result.SkippedFiles, SkippedFile{
+				Path:   relativePath,
+				Reason: "local file is missing after a previous sync",
+			})
+		default:
+			localHash := sha256Hex(localContent)
+
+			switch {
+			case localHash == remoteHash:
+				result.UnchangedFiles = append(result.UnchangedFiles, relativePath)
+				state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+			case localHash == fileState.SyncedSHA256:
+				if err := writeContent(targetPath, remoteContent); err != nil {
+					return Result{}, fmt.Errorf("writing %s: %w", entry.Name, err)
+				}
+				result.UpdatedFiles = append(result.UpdatedFiles, relativePath)
+				state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+			case opts.Force:
+				if err := writeContent(targetPath, remoteContent); err != nil {
+					return Result{}, fmt.Errorf("writing %s: %w", entry.Name, err)
+				}
+				result.UpdatedFiles = append(result.UpdatedFiles, relativePath)
+				state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+			default:
+				reason := "local edits detected"
+				if remoteHash != fileState.SyncedSHA256 {
+					reason = "local edits conflict with newer remote content"
+				}
+				result.SkippedFiles = append(result.SkippedFiles, SkippedFile{
+					Path:   relativePath,
+					Reason: reason,
+				})
+			}
+		}
 	}
 
-	return Result{
-		TargetDir:   opts.TargetDir,
-		SyncedFiles: synced,
-	}, nil
+	state.Source = stateSource{
+		Owner: opts.Owner,
+		Repo:  opts.Repo,
+		Ref:   opts.Ref,
+	}
+
+	if err := writeState(statePath, state); err != nil {
+		return Result{}, err
+	}
+
+	return result, nil
 }
 
 func withDefaults(opts Options) Options {
@@ -159,46 +260,94 @@ func listRemoteSkillFiles(opts Options) ([]contentEntry, error) {
 	return filtered, nil
 }
 
-func downloadFile(client *http.Client, url string, targetPath string) error {
+func fetchFileContent(client *http.Client, url string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return fmt.Errorf("creating download request: %w", err)
+		return nil, fmt.Errorf("creating download request: %w", err)
 	}
 	req.Header.Set("User-Agent", "atami-cli")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("requesting remote file: %w", err)
+		return nil, fmt.Errorf("requesting remote file: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		if readErr != nil {
-			return fmt.Errorf("remote file request returned %s", resp.Status)
+			return nil, fmt.Errorf("remote file request returned %s", resp.Status)
 		}
-		return fmt.Errorf("remote file request returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("remote file request returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-		return fmt.Errorf("creating parent directory for %q: %w", targetPath, err)
-	}
-
-	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	content, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("opening target file %q: %w", targetPath, err)
+		return nil, fmt.Errorf("reading remote file response: %w", err)
+	}
+	return content, nil
+}
+
+func loadState(path string) (syncState, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return syncState{Files: map[string]stateFileInfo{}}, nil
+		}
+		return syncState{}, fmt.Errorf("reading kb skills state: %w", err)
 	}
 
-	if _, err := io.Copy(file, resp.Body); err != nil {
-		_ = file.Close()
-		return fmt.Errorf("writing target file %q: %w", targetPath, err)
+	var state syncState
+	if err := json.Unmarshal(content, &state); err != nil {
+		return syncState{}, fmt.Errorf("parsing kb skills state: %w", err)
+	}
+	if state.Files == nil {
+		state.Files = map[string]stateFileInfo{}
+	}
+	return state, nil
+}
+
+func writeState(path string, state syncState) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating kb skills state directory: %w", err)
 	}
 
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("closing target file %q: %w", targetPath, err)
+	content, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encoding kb skills state: %w", err)
 	}
+	content = append(content, '\n')
 
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return fmt.Errorf("writing kb skills state: %w", err)
+	}
 	return nil
+}
+
+func readFileIfExists(path string) ([]byte, bool, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return content, true, nil
+}
+
+func writeContent(path string, content []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating parent directory for %q: %w", path, err)
+	}
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return fmt.Errorf("writing target file %q: %w", path, err)
+	}
+	return nil
+}
+
+func sha256Hex(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
 }
 
 func getenvOrDefault(key string, fallback string) string {
