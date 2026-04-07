@@ -4,7 +4,12 @@ The `atami` command-line tool for managing project-kb in Atami team projects.
 
 ## Status
 
-Phase 1 currently implements `atami kb init`. The command structure now also reserves the `atami kb skills` namespace for project-kb skill sync commands in a later phase, while top-level `atami skills` remains available for non-KB skills in the future.
+The CLI currently implements:
+
+- `atami kb init`
+- `atami kb skills pull`
+
+The top-level `atami skills` namespace remains available for future non-KB skills.
 
 ## Building
 
@@ -60,6 +65,16 @@ For local development and tests, you can explicitly override the source in this 
 2. The `ATAMI_AI_PATH` environment variable.
 
 If neither override is set, the CLI fetches `Kosmic/atami-ai@main` from GitHub. You can override the remote source with `ATAMI_GITHUB_OWNER`, `ATAMI_GITHUB_REPO`, and `ATAMI_GITHUB_REF`.
+
+### Refresh project-kb skills
+
+From inside a project that already has `.project-kb/`:
+
+```sh
+atami kb skills pull
+```
+
+This command fetches the canonical top-level Markdown files from `project-kb/skills/` in the shared repo and writes them into `.project-kb/skills/`. It does not modify `.project-kb/skills/overrides/`.
 
 ## Tests
 

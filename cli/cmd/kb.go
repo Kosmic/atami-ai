@@ -13,7 +13,9 @@ func newKbCmd(opts Options) *cobra.Command {
 	}
 
 	kbCmd.AddCommand(newKBInitCmd(opts))
-	kbCmd.AddCommand(newKBSkillsCmd())
+	kbSkillsCmd := newKBSkillsCmd()
+	kbSkillsCmd.AddCommand(newKBSkillsPullCmd(opts))
+	kbCmd.AddCommand(kbSkillsCmd)
 
 	return kbCmd
 }

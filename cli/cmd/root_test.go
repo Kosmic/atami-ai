@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/atami-ai/atami-ai/cli/internal/kbskillspull"
 )
 
 func TestRoot_VersionFlag(t *testing.T) {
@@ -62,6 +64,69 @@ func TestKbSkills_Help(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "Manage project-kb skill syncing") {
 		t.Fatalf("kb skills help missing description:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "pull") {
+		t.Fatalf("kb skills help missing pull command:\n%s", stdout)
+	}
+}
+
+func TestKbSkillsPull_Help(t *testing.T) {
+	stdout, stderr, exitCode := executeCLI(t, t.TempDir(), "kb", "skills", "pull", "--help")
+
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%q", exitCode, stderr)
+	}
+	if !strings.Contains(stdout, "Sync canonical project-kb skill files") {
+		t.Fatalf("kb skills pull help missing description:\n%s", stdout)
+	}
+}
+
+func TestKbSkillsPull_UserErrorFormatting(t *testing.T) {
+	stdout, stderr, exitCode := executeCLIWithOptions(t, t.TempDir(), Options{
+		PullKBSkills: func(kbskillspull.Options) (kbskillspull.Result, error) {
+			return kbskillspull.Result{}, fmt.Errorf(".project-kb/ does not exist in this directory. Run `atami kb init` first.")
+		},
+	}, "kb", "skills", "pull")
+
+	if exitCode == 0 {
+		t.Fatal("expected non-zero exit code")
+	}
+	if stdout != "" {
+		t.Fatalf("expected empty stdout, got %q", stdout)
+	}
+	if !strings.HasPrefix(stderr, "Error: ") {
+		t.Fatalf("stderr should start with Error:, got %q", stderr)
+	}
+}
+
+func TestKbSkillsPull_EndToEndHappyPath(t *testing.T) {
+	cwd := t.TempDir()
+	stdout, stderr, exitCode := executeCLIWithOptions(t, cwd, Options{
+		PullKBSkills: func(kbskillspull.Options) (kbskillspull.Result, error) {
+			return kbskillspull.Result{
+				TargetDir: cwd,
+				SyncedFiles: []string{
+					".project-kb/skills/generate-output.md",
+					".project-kb/skills/process-inbox.md",
+					".project-kb/skills/release-notes.md",
+				},
+			}, nil
+		},
+	}, "kb", "skills", "pull")
+
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%q", exitCode, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("unexpected stderr: %q", stderr)
+	}
+
+	expected := fmt.Sprintf(
+		"✓ Synced 3 project-kb skill files into .project-kb/skills/ in %s\n\nUpdated:\n  .project-kb/skills/generate-output.md\n  .project-kb/skills/process-inbox.md\n  .project-kb/skills/release-notes.md\n\nLeft untouched:\n  .project-kb/skills/overrides/\n",
+		cwd,
+	)
+	if stdout != expected {
+		t.Fatalf("unexpected stdout:\n%s", stdout)
 	}
 }
 
@@ -128,17 +193,22 @@ func TestKbInit_EndToEndHappyPath(t *testing.T) {
 
 func executeCLI(t *testing.T, cwd string, args ...string) (string, string, int) {
 	t.Helper()
+	return executeCLIWithOptions(t, cwd, Options{}, args...)
+}
+
+func executeCLIWithOptions(t *testing.T, cwd string, opts Options, args ...string) (string, string, int) {
+	t.Helper()
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	exitCode := Execute(args, Options{
-		Stdout: &stdout,
-		Stderr: &stderr,
-		Getwd: func() (string, error) {
-			return cwd, nil
-		},
-	})
+	opts.Stdout = &stdout
+	opts.Stderr = &stderr
+	opts.Getwd = func() (string, error) {
+		return cwd, nil
+	}
+
+	exitCode := Execute(args, opts)
 
 	return stdout.String(), stderr.String(), exitCode
 }

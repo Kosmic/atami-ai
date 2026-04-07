@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/atami-ai/atami-ai/cli/internal/kbskillspull"
 	"github.com/atami-ai/atami-ai/cli/internal/templatefs"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +18,7 @@ type Options struct {
 	Stderr       io.Writer
 	Getwd        func() (string, error)
 	ResolvePaths func(string) (templatefs.ResolvedPaths, error)
+	PullKBSkills func(kbskillspull.Options) (kbskillspull.Result, error)
 }
 
 // Execute runs the CLI with the provided arguments and returns the process exit code.
@@ -68,6 +70,9 @@ func withDefaults(opts Options) Options {
 	}
 	if opts.ResolvePaths == nil {
 		opts.ResolvePaths = templatefs.ResolvePaths
+	}
+	if opts.PullKBSkills == nil {
+		opts.PullKBSkills = kbskillspull.Pull
 	}
 	return opts
 }

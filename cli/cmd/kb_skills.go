@@ -3,7 +3,7 @@ package cmd
 import "github.com/spf13/cobra"
 
 func newKBSkillsCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "skills",
 		Short: "Manage project-kb skill syncing",
 		Args:  cobra.NoArgs,
@@ -11,4 +11,5 @@ func newKBSkillsCmd() *cobra.Command {
 			return cmd.Help()
 		},
 	}
+	return cmd
 }
