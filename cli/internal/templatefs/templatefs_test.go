@@ -175,7 +175,7 @@ func newTarballServer(t *testing.T, sourceRoot string) *httptest.Server {
 
 	archive := tarballFromDir(t, sourceRoot, "atami-ai-atami-ai-main")
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/repos/atami-ai/atami-ai/tarball/main" {
+		if r.URL.Path != "/repos/Kosmic/atami-ai/tarball/main" {
 			http.NotFound(w, r)
 			return
 		}

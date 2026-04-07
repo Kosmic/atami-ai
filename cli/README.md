@@ -59,7 +59,7 @@ For local development and tests, you can explicitly override the source in this 
 1. The `--template-source` flag if provided.
 2. The `ATAMI_AI_PATH` environment variable.
 
-If neither override is set, the CLI fetches `atami-ai/atami-ai@main` from GitHub. You can override the remote source with `ATAMI_GITHUB_OWNER`, `ATAMI_GITHUB_REPO`, and `ATAMI_GITHUB_REF`.
+If neither override is set, the CLI fetches `Kosmic/atami-ai@main` from GitHub. You can override the remote source with `ATAMI_GITHUB_OWNER`, `ATAMI_GITHUB_REPO`, and `ATAMI_GITHUB_REF`.
 
 ## Tests
 

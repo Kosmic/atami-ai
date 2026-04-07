@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultGitHubOwner   = "atami-ai"
+	defaultGitHubOwner   = "Kosmic"
 	defaultGitHubRepo    = "atami-ai"
 	defaultGitHubRef     = "main"
 	defaultGitHubAPIBase = "https://api.github.com"
