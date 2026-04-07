@@ -11,13 +11,13 @@ Phase 1 currently implements only `atami kb init`. The command structure is set 
 From inside `cli/`:
 
 ```sh
-go build -o atami .
+go build -o atami ./atami
 ```
 
 This produces an `atami` binary in the current directory. To install it on your PATH:
 
 ```sh
-go install .
+go install ./atami
 ```
 
 ## Usage
