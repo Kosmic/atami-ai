@@ -49,6 +49,20 @@ func TestKb_Help(t *testing.T) {
 	if !strings.Contains(stdout, "init") {
 		t.Fatalf("kb help missing init command:\n%s", stdout)
 	}
+	if !strings.Contains(stdout, "skills") {
+		t.Fatalf("kb help missing skills command:\n%s", stdout)
+	}
+}
+
+func TestKbSkills_Help(t *testing.T) {
+	stdout, stderr, exitCode := executeCLI(t, t.TempDir(), "kb", "skills")
+
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%q", exitCode, stderr)
+	}
+	if !strings.Contains(stdout, "Manage project-kb skill syncing") {
+		t.Fatalf("kb skills help missing description:\n%s", stdout)
+	}
 }
 
 func TestKbInit_Help(t *testing.T) {

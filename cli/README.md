@@ -4,7 +4,7 @@ The `atami` command-line tool for managing project-kb in Atami team projects.
 
 ## Status
 
-Phase 1 currently implements only `atami kb init`. The command structure is set up so `atami skills` and additional `atami kb` commands can be added in later phases.
+Phase 1 currently implements `atami kb init`. The command structure now also reserves the `atami kb skills` namespace for project-kb skill sync commands in a later phase, while top-level `atami skills` remains available for non-KB skills in the future.
 
 ## Building
 

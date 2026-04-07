@@ -13,6 +13,7 @@ func newKbCmd(opts Options) *cobra.Command {
 	}
 
 	kbCmd.AddCommand(newKBInitCmd(opts))
+	kbCmd.AddCommand(newKBSkillsCmd())
 
 	return kbCmd
 }
