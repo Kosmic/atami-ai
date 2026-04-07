@@ -52,18 +52,14 @@ If `.project-kb/` already exists, the command will refuse to run unless you pass
 
 ### Template and skill source
 
-By default, `atami kb init` falls back to the canonical GitHub repository and downloads the current template and project-kb skill files from there.
+By default, `atami kb init` downloads the current template and project-kb skill files from the canonical GitHub repository.
 
-For local development and tests, the CLI still prefers these local overrides in order:
+For local development and tests, you can explicitly override the source in this order:
 
 1. The `--template-source` flag if provided.
 2. The `ATAMI_AI_PATH` environment variable.
-3. `~/atami-ai/`
-4. `~/code/atami-ai/`
-5. `~/Code/atami-ai/`
-6. `~/dev/atami-ai/`
 
-If no local source is found, the CLI fetches `atami-ai/atami-ai@main` from GitHub. You can override the remote source with `ATAMI_GITHUB_OWNER`, `ATAMI_GITHUB_REPO`, and `ATAMI_GITHUB_REF`.
+If neither override is set, the CLI fetches `atami-ai/atami-ai@main` from GitHub. You can override the remote source with `ATAMI_GITHUB_OWNER`, `ATAMI_GITHUB_REPO`, and `ATAMI_GITHUB_REF`.
 
 ## Tests
 

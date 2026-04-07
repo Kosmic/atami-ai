@@ -43,4 +43,4 @@ atami kb release --week        # Generate weekly release notes
 atami kb skills pull           # Refresh synced project-kb skills from this shared repo
 ```
 
-`atami kb init` can use a local checkout during development, but the intended team workflow is that installed CLIs fetch canonical project-kb content from the shared repo remotely.
+`atami kb init` fetches canonical project-kb content from the shared repo by default. Local checkouts are only used when explicitly requested for development.

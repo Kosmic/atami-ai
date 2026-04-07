@@ -61,18 +61,14 @@ func TestResolve_EnvVar(t *testing.T) {
 }
 
 func TestResolve_NoneFound(t *testing.T) {
-	tempHome := t.TempDir()
-
 	_, err := resolvePaths("", resolverOptions{
-		lookupEnv:      func(string) (string, bool) { return "", false },
-		userHome:       func() (string, error) { return tempHome, nil },
-		searchRelPaths: defaultSearchRelativePaths,
-		fetchRemote:    nil,
+		lookupEnv:   func(string) (string, bool) { return "", false },
+		fetchRemote: nil,
 	})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "could not find the atami-ai repo") {
+	if !strings.Contains(err.Error(), "could not resolve the atami-ai source") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -96,35 +92,15 @@ func TestResolve_MissingSkillsDirFails(t *testing.T) {
 	}
 }
 
-func TestResolve_UppercaseCodePath(t *testing.T) {
-	tempHome := t.TempDir()
-	repoRoot := filepath.Join(tempHome, "Code", "atami-ai")
-	copyFixtureRepo(t, repoRoot)
-
-	resolved, err := resolvePaths("", resolverOptions{
-		lookupEnv:      func(string) (string, bool) { return "", false },
-		userHome:       func() (string, error) { return tempHome, nil },
-		searchRelPaths: []string{filepath.Join("Code", "atami-ai")},
-	})
-	if err != nil {
-		t.Fatalf("resolvePaths returned error: %v", err)
-	}
-	if resolved.RepoRoot != repoRoot {
-		t.Fatalf("unexpected repo root: got %q want %q", resolved.RepoRoot, repoRoot)
-	}
-}
-
 func TestResolve_RemoteFallback(t *testing.T) {
 	server := newTarballServer(t, fixtureRepoRoot(t))
 	defer server.Close()
 
 	resolved, err := resolvePaths("", resolverOptions{
-		lookupEnv:      func(string) (string, bool) { return "", false },
-		userHome:       func() (string, error) { return t.TempDir(), nil },
-		searchRelPaths: defaultSearchRelativePaths,
-		httpClient:     server.Client(),
-		mkdirTemp:      os.MkdirTemp,
-		fetchRemote:    fetchRemotePaths,
+		lookupEnv:   func(string) (string, bool) { return "", false },
+		httpClient:  server.Client(),
+		mkdirTemp:   os.MkdirTemp,
+		fetchRemote: fetchRemotePaths,
 		remote: remoteConfig{
 			apiBaseURL: server.URL,
 			owner:      defaultGitHubOwner,
@@ -153,12 +129,10 @@ func TestResolve_RemoteFailure(t *testing.T) {
 	defer server.Close()
 
 	_, err := resolvePaths("", resolverOptions{
-		lookupEnv:      func(string) (string, bool) { return "", false },
-		userHome:       func() (string, error) { return t.TempDir(), nil },
-		searchRelPaths: defaultSearchRelativePaths,
-		httpClient:     server.Client(),
-		mkdirTemp:      os.MkdirTemp,
-		fetchRemote:    fetchRemotePaths,
+		lookupEnv:   func(string) (string, bool) { return "", false },
+		httpClient:  server.Client(),
+		mkdirTemp:   os.MkdirTemp,
+		fetchRemote: fetchRemotePaths,
 		remote: remoteConfig{
 			apiBaseURL: server.URL,
 			owner:      defaultGitHubOwner,
@@ -194,49 +168,6 @@ func fixtureRepoRoot(t *testing.T) string {
 func fixtureTemplateDir(t *testing.T) string {
 	t.Helper()
 	return filepath.Join(fixtureRepoRoot(t), "project-kb", "template")
-}
-
-func copyFixtureRepo(t *testing.T, targetRoot string) {
-	t.Helper()
-
-	sourceRoot := fixtureRepoRoot(t)
-	if err := filepath.Walk(sourceRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(sourceRoot, path)
-		if err != nil {
-			return err
-		}
-
-		targetPath := filepath.Join(targetRoot, relPath)
-		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode().Perm())
-		}
-
-		sourceFile, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer sourceFile.Close()
-
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-			return err
-		}
-
-		targetFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode().Perm())
-		if err != nil {
-			return err
-		}
-		if _, err := io.Copy(targetFile, sourceFile); err != nil {
-			_ = targetFile.Close()
-			return err
-		}
-		return targetFile.Close()
-	}); err != nil {
-		t.Fatalf("copyFixtureRepo returned error: %v", err)
-	}
 }
 
 func newTarballServer(t *testing.T, sourceRoot string) *httptest.Server {

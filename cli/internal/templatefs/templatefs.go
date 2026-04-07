@@ -12,13 +12,6 @@ import (
 	"time"
 )
 
-var defaultSearchRelativePaths = []string{
-	"atami-ai",
-	filepath.Join("code", "atami-ai"),
-	filepath.Join("Code", "atami-ai"),
-	filepath.Join("dev", "atami-ai"),
-}
-
 const (
 	defaultGitHubOwner   = "atami-ai"
 	defaultGitHubRepo    = "atami-ai"
@@ -34,13 +27,11 @@ type ResolvedPaths struct {
 }
 
 type resolverOptions struct {
-	lookupEnv      func(string) (string, bool)
-	userHome       func() (string, error)
-	searchRelPaths []string
-	httpClient     *http.Client
-	mkdirTemp      func(string, string) (string, error)
-	remote         remoteConfig
-	fetchRemote    func(remoteConfig) (ResolvedPaths, error)
+	lookupEnv   func(string) (string, bool)
+	httpClient  *http.Client
+	mkdirTemp   func(string, string) (string, error)
+	remote      remoteConfig
+	fetchRemote func(remoteConfig) (ResolvedPaths, error)
 }
 
 type remoteConfig struct {
@@ -56,9 +47,7 @@ type remoteConfig struct {
 // local development checkouts and falling back to the canonical GitHub repository.
 func ResolvePaths(explicitTemplate string) (ResolvedPaths, error) {
 	return resolvePaths(explicitTemplate, resolverOptions{
-		lookupEnv:      os.LookupEnv,
-		userHome:       os.UserHomeDir,
-		searchRelPaths: defaultSearchRelativePaths,
+		lookupEnv: os.LookupEnv,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -104,34 +93,6 @@ func resolvePaths(explicitTemplate string, opts resolverOptions) (ResolvedPaths,
 		return resolved, nil
 	}
 
-	homeDir, err := opts.userHome()
-	if err != nil {
-		return ResolvedPaths{}, fmt.Errorf("determining home directory: %w", err)
-	}
-
-	for _, relPath := range opts.searchRelPaths {
-		candidateRoot := filepath.Join(homeDir, relPath)
-		info, err := os.Stat(candidateRoot)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return ResolvedPaths{}, fmt.Errorf("checking repo root %q: %w", candidateRoot, err)
-		}
-		if !info.IsDir() {
-			return ResolvedPaths{}, fmt.Errorf("repo root is not a directory: %s", candidateRoot)
-		}
-
-		resolved, err := newResolvedPaths(candidateRoot)
-		if err != nil {
-			return ResolvedPaths{}, err
-		}
-		if err := validateResolvedPaths(resolved); err != nil {
-			return ResolvedPaths{}, err
-		}
-		return resolved, nil
-	}
-
 	if opts.fetchRemote != nil {
 		remoteOpts := opts.remote
 		if remoteOpts.client == nil {
@@ -149,7 +110,7 @@ func resolvePaths(explicitTemplate string, opts resolverOptions) (ResolvedPaths,
 		return ResolvedPaths{}, fmt.Errorf("could not find a local atami-ai repo and failed to fetch %s/%s@%s from GitHub: %w", remoteOpts.owner, remoteOpts.repo, remoteOpts.ref, err)
 	}
 
-	return ResolvedPaths{}, fmt.Errorf("could not find the atami-ai repo; set ATAMI_AI_PATH or clone the repo to ~/atami-ai, ~/code/atami-ai, ~/Code/atami-ai, or ~/dev/atami-ai")
+	return ResolvedPaths{}, fmt.Errorf("could not resolve the atami-ai source; use --template-source, set ATAMI_AI_PATH, or enable the default GitHub fetch")
 }
 
 func newResolvedPaths(repoRoot string) (ResolvedPaths, error) {
