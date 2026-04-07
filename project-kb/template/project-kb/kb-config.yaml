@@ -1,0 +1,25 @@
+# Project knowledge base configuration
+# This file is created when you run `atami kb init`. Edit the placeholders below.
+
+project:
+  name: "TODO: replace with project name"
+  description: "TODO: brief description for LLM context"
+
+# Team members and their roles.
+# The LLM uses this to calibrate outputs — a "product" role gets
+# non-technical language, a "developer" role gets code-level detail.
+team:
+  - name: "TODO: add team members"
+    role: developer
+  # Roles: developer, product, design, stakeholder
+
+# Item prefixes. You can add more if needed.
+item_types:
+  - prefix: "task"
+    label: "Task"
+  - prefix: "feat"
+    label: "Feature"
+  - prefix: "bug"
+    label: "Bug"
+  - prefix: "disc"
+    label: "Discussion"

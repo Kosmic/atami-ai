@@ -1,0 +1,31 @@
+<!-- BEGIN atami project-kb -->
+## Project knowledge base
+
+This project contains a knowledge base in `.project-kb/`. It tracks features, bugs, and discussion items across the team.
+
+### KB structure
+
+- `.project-kb/inbox/` — raw, unstructured input from the team (meeting notes, ideas, feedback). Humans write here.
+- `.project-kb/items/` — structured items compiled from inbox contents. Maintained by the agent. Humans read but don't edit them.
+- `.project-kb/releases/` — release notes generated on request.
+- `.project-kb/outputs/` — shareable artifacts (HTML pages, summaries) generated for specific team members.
+- `.project-kb/skills/` — instruction files that tell the agent how to perform KB tasks. Synced from the atami-ai repo via `atami skills pull`.
+- `.project-kb/skills/overrides/` — project-specific overrides of the standard skills. Take precedence over the synced versions.
+- `.project-kb/kb-config.yaml` — project name, team members, and their roles.
+
+### KB skill resolution
+
+Before performing any KB action, read the relevant skill file:
+
+- For processing the inbox: read `.project-kb/skills/overrides/process-inbox.md` if it exists, otherwise `.project-kb/skills/process-inbox.md`.
+- For generating shareable outputs: read `.project-kb/skills/overrides/generate-output.md` if it exists, otherwise `.project-kb/skills/generate-output.md`.
+- For generating release notes: read `.project-kb/skills/overrides/release-notes.md` if it exists, otherwise `.project-kb/skills/release-notes.md`.
+
+### KB rules
+
+- Never delete files from `inbox/`. Move processed files to `inbox/archive/`.
+- Always update `items/index.md` after creating or modifying items.
+- When generating outputs, read `kb-config.yaml` to check team roles and calibrate language accordingly.
+- Preserve specifics from raw input: names, code snippets, error messages, constraints. Restructure for clarity but don't discard detail.
+- Never edit files in `.project-kb/skills/` directly — they are synced from the atami-ai shared repo and will be overwritten. To customise, use `.project-kb/skills/overrides/` instead.
+<!-- END atami project-kb -->
