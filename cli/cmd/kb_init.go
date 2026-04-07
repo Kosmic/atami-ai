@@ -68,7 +68,7 @@ func formatInitSuccess(result kbinit.Result) string {
 	builder.WriteString(formatAgentsMDStatus(result))
 	builder.WriteString("\n\nNext steps:\n")
 	builder.WriteString("  1. Edit .project-kb/kb-config.yaml to set the project name and team members.\n")
-	builder.WriteString("  2. Drop your first meeting notes into .project-kb/inbox/.\n")
+	builder.WriteString("  2. Drop your first unstructured meeting notes/bug/task into .project-kb/inbox/.\n")
 	builder.WriteString("  3. Ask your coding agent to process the inbox.\n")
 
 	return builder.String()
