@@ -1,8 +1,14 @@
 package templatefs
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -61,6 +67,7 @@ func TestResolve_NoneFound(t *testing.T) {
 		lookupEnv:      func(string) (string, bool) { return "", false },
 		userHome:       func() (string, error) { return tempHome, nil },
 		searchRelPaths: defaultSearchRelativePaths,
+		fetchRemote:    nil,
 	})
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -104,6 +111,68 @@ func TestResolve_UppercaseCodePath(t *testing.T) {
 	}
 	if resolved.RepoRoot != repoRoot {
 		t.Fatalf("unexpected repo root: got %q want %q", resolved.RepoRoot, repoRoot)
+	}
+}
+
+func TestResolve_RemoteFallback(t *testing.T) {
+	server := newTarballServer(t, fixtureRepoRoot(t))
+	defer server.Close()
+
+	resolved, err := resolvePaths("", resolverOptions{
+		lookupEnv:      func(string) (string, bool) { return "", false },
+		userHome:       func() (string, error) { return t.TempDir(), nil },
+		searchRelPaths: defaultSearchRelativePaths,
+		httpClient:     server.Client(),
+		mkdirTemp:      os.MkdirTemp,
+		fetchRemote:    fetchRemotePaths,
+		remote: remoteConfig{
+			apiBaseURL: server.URL,
+			owner:      defaultGitHubOwner,
+			repo:       defaultGitHubRepo,
+			ref:        defaultGitHubRef,
+			client:     server.Client(),
+			mkdirTemp:  os.MkdirTemp,
+		},
+	})
+	if err != nil {
+		t.Fatalf("resolvePaths returned error: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(resolved.TemplateDir, "project-kb", "kb-config.yaml")); err != nil {
+		t.Fatalf("expected remote template content to exist: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(resolved.SkillsDir, "process-inbox.md")); err != nil {
+		t.Fatalf("expected remote skills content to exist: %v", err)
+	}
+}
+
+func TestResolve_RemoteFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	_, err := resolvePaths("", resolverOptions{
+		lookupEnv:      func(string) (string, bool) { return "", false },
+		userHome:       func() (string, error) { return t.TempDir(), nil },
+		searchRelPaths: defaultSearchRelativePaths,
+		httpClient:     server.Client(),
+		mkdirTemp:      os.MkdirTemp,
+		fetchRemote:    fetchRemotePaths,
+		remote: remoteConfig{
+			apiBaseURL: server.URL,
+			owner:      defaultGitHubOwner,
+			repo:       defaultGitHubRepo,
+			ref:        defaultGitHubRef,
+			client:     server.Client(),
+			mkdirTemp:  os.MkdirTemp,
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to fetch") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -168,4 +237,78 @@ func copyFixtureRepo(t *testing.T, targetRoot string) {
 	}); err != nil {
 		t.Fatalf("copyFixtureRepo returned error: %v", err)
 	}
+}
+
+func newTarballServer(t *testing.T, sourceRoot string) *httptest.Server {
+	t.Helper()
+
+	archive := tarballFromDir(t, sourceRoot, "atami-ai-atami-ai-main")
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/atami-ai/atami-ai/tarball/main" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/gzip")
+		_, _ = w.Write(archive)
+	}))
+}
+
+func tarballFromDir(t *testing.T, sourceRoot string, prefix string) []byte {
+	t.Helper()
+
+	var buffer bytes.Buffer
+	gzipWriter := gzip.NewWriter(&buffer)
+	tarWriter := tar.NewWriter(gzipWriter)
+
+	if err := filepath.Walk(sourceRoot, func(currentPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(sourceRoot, currentPath)
+		if err != nil {
+			return err
+		}
+		if relPath == "." {
+			return nil
+		}
+
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+		header.Name = path.Join(prefix, filepath.ToSlash(relPath))
+		if info.IsDir() {
+			header.Name += "/"
+		}
+
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		file, err := os.Open(currentPath)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(tarWriter, file)
+		closeErr := file.Close()
+		if err != nil {
+			return err
+		}
+		return closeErr
+	}); err != nil {
+		t.Fatalf("tarballFromDir returned error: %v", err)
+	}
+
+	if err := tarWriter.Close(); err != nil {
+		t.Fatalf("closing tar writer: %v", err)
+	}
+	if err := gzipWriter.Close(); err != nil {
+		t.Fatalf("closing gzip writer: %v", err)
+	}
+
+	return buffer.Bytes()
 }

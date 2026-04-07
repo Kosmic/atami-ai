@@ -1,9 +1,15 @@
 package templatefs
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
 var defaultSearchRelativePaths = []string{
@@ -12,6 +18,13 @@ var defaultSearchRelativePaths = []string{
 	filepath.Join("Code", "atami-ai"),
 	filepath.Join("dev", "atami-ai"),
 }
+
+const (
+	defaultGitHubOwner   = "atami-ai"
+	defaultGitHubRepo    = "atami-ai"
+	defaultGitHubRef     = "main"
+	defaultGitHubAPIBase = "https://api.github.com"
+)
 
 // ResolvedPaths contains the validated filesystem paths needed by the CLI.
 type ResolvedPaths struct {
@@ -24,14 +37,39 @@ type resolverOptions struct {
 	lookupEnv      func(string) (string, bool)
 	userHome       func() (string, error)
 	searchRelPaths []string
+	httpClient     *http.Client
+	mkdirTemp      func(string, string) (string, error)
+	remote         remoteConfig
+	fetchRemote    func(remoteConfig) (ResolvedPaths, error)
 }
 
-// ResolvePaths locates and validates the local atami-ai repository paths needed by the CLI.
+type remoteConfig struct {
+	apiBaseURL string
+	owner      string
+	repo       string
+	ref        string
+	client     *http.Client
+	mkdirTemp  func(string, string) (string, error)
+}
+
+// ResolvePaths locates and validates the atami-ai source needed by the CLI, preferring
+// local development checkouts and falling back to the canonical GitHub repository.
 func ResolvePaths(explicitTemplate string) (ResolvedPaths, error) {
 	return resolvePaths(explicitTemplate, resolverOptions{
 		lookupEnv:      os.LookupEnv,
 		userHome:       os.UserHomeDir,
 		searchRelPaths: defaultSearchRelativePaths,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		mkdirTemp:   os.MkdirTemp,
+		fetchRemote: fetchRemotePaths,
+		remote: remoteConfig{
+			apiBaseURL: defaultGitHubAPIBase,
+			owner:      getenvOrDefault(os.LookupEnv, "ATAMI_GITHUB_OWNER", defaultGitHubOwner),
+			repo:       getenvOrDefault(os.LookupEnv, "ATAMI_GITHUB_REPO", defaultGitHubRepo),
+			ref:        getenvOrDefault(os.LookupEnv, "ATAMI_GITHUB_REF", defaultGitHubRef),
+		},
 	})
 }
 
@@ -94,6 +132,23 @@ func resolvePaths(explicitTemplate string, opts resolverOptions) (ResolvedPaths,
 		return resolved, nil
 	}
 
+	if opts.fetchRemote != nil {
+		remoteOpts := opts.remote
+		if remoteOpts.client == nil {
+			remoteOpts.client = opts.httpClient
+		}
+		if remoteOpts.mkdirTemp == nil {
+			remoteOpts.mkdirTemp = opts.mkdirTemp
+		}
+
+		resolved, err := opts.fetchRemote(remoteOpts)
+		if err == nil {
+			return resolved, nil
+		}
+
+		return ResolvedPaths{}, fmt.Errorf("could not find a local atami-ai repo and failed to fetch %s/%s@%s from GitHub: %w", remoteOpts.owner, remoteOpts.repo, remoteOpts.ref, err)
+	}
+
 	return ResolvedPaths{}, fmt.Errorf("could not find the atami-ai repo; set ATAMI_AI_PATH or clone the repo to ~/atami-ai, ~/code/atami-ai, ~/Code/atami-ai, or ~/dev/atami-ai")
 }
 
@@ -133,6 +188,148 @@ func validateResolvedPaths(paths ResolvedPaths) error {
 	}
 
 	return nil
+}
+
+func fetchRemotePaths(cfg remoteConfig) (ResolvedPaths, error) {
+	if cfg.apiBaseURL == "" {
+		cfg.apiBaseURL = defaultGitHubAPIBase
+	}
+	if cfg.owner == "" {
+		cfg.owner = defaultGitHubOwner
+	}
+	if cfg.repo == "" {
+		cfg.repo = defaultGitHubRepo
+	}
+	if cfg.ref == "" {
+		cfg.ref = defaultGitHubRef
+	}
+	if cfg.client == nil {
+		cfg.client = &http.Client{Timeout: 30 * time.Second}
+	}
+	if cfg.mkdirTemp == nil {
+		cfg.mkdirTemp = os.MkdirTemp
+	}
+
+	repoRoot, err := downloadGitHubTarball(cfg)
+	if err != nil {
+		return ResolvedPaths{}, err
+	}
+
+	resolved, err := newResolvedPaths(repoRoot)
+	if err != nil {
+		return ResolvedPaths{}, err
+	}
+	if err := validateResolvedPaths(resolved); err != nil {
+		return ResolvedPaths{}, err
+	}
+	return resolved, nil
+}
+
+func downloadGitHubTarball(cfg remoteConfig) (string, error) {
+	tempDir, err := cfg.mkdirTemp("", "atami-source-*")
+	if err != nil {
+		return "", fmt.Errorf("creating temporary directory for remote source: %w", err)
+	}
+
+	url := strings.TrimRight(cfg.apiBaseURL, "/") + "/repos/" + cfg.owner + "/" + cfg.repo + "/tarball/" + cfg.ref
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating GitHub archive request: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "atami-cli")
+
+	resp, err := cfg.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("downloading GitHub archive: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if readErr != nil {
+			return "", fmt.Errorf("GitHub archive request returned %s", resp.Status)
+		}
+		return "", fmt.Errorf("GitHub archive request returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	gzipReader, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("opening downloaded archive: %w", err)
+	}
+	defer gzipReader.Close()
+
+	tarReader := tar.NewReader(gzipReader)
+	var repoPrefix string
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("reading downloaded archive: %w", err)
+		}
+
+		name := strings.TrimPrefix(header.Name, "./")
+		name = filepath.ToSlash(filepath.Clean(name))
+		if name == "." || name == "" {
+			continue
+		}
+
+		parts := strings.Split(name, "/")
+		if len(parts) == 1 {
+			repoPrefix = parts[0]
+			continue
+		}
+		if repoPrefix == "" {
+			repoPrefix = parts[0]
+		}
+
+		relativePath := filepath.Join(parts[1:]...)
+		if relativePath == "." || relativePath == "" {
+			continue
+		}
+		if strings.HasPrefix(relativePath, "..") {
+			return "", fmt.Errorf("downloaded archive contains invalid path %q", header.Name)
+		}
+
+		targetPath := filepath.Join(tempDir, repoPrefix, relativePath)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode).Perm()); err != nil {
+				return "", fmt.Errorf("creating directory %q from archive: %w", targetPath, err)
+			}
+		case tar.TypeReg, tar.TypeRegA:
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+				return "", fmt.Errorf("creating parent directory for %q: %w", targetPath, err)
+			}
+			file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode).Perm())
+			if err != nil {
+				return "", fmt.Errorf("creating file %q from archive: %w", targetPath, err)
+			}
+			if _, err := io.Copy(file, tarReader); err != nil {
+				_ = file.Close()
+				return "", fmt.Errorf("writing file %q from archive: %w", targetPath, err)
+			}
+			if err := file.Close(); err != nil {
+				return "", fmt.Errorf("closing file %q from archive: %w", targetPath, err)
+			}
+		}
+	}
+
+	if repoPrefix == "" {
+		return "", fmt.Errorf("downloaded archive did not contain a repository root")
+	}
+
+	return filepath.Join(tempDir, repoPrefix), nil
+}
+
+func getenvOrDefault(lookup func(string) (string, bool), key string, fallback string) string {
+	if value, ok := lookup(key); ok && value != "" {
+		return value
+	}
+	return fallback
 }
 
 func requireDir(path string, label string) error {

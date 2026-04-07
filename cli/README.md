@@ -20,6 +20,18 @@ This produces an `atami` binary in the current directory. To install it on your 
 go install ./atami
 ```
 
+From the repository root, the recommended install flow is:
+
+```sh
+./scripts/install-atami
+```
+
+Or, if your environment already uses `make`:
+
+```sh
+make install-atami
+```
+
 ## Usage
 
 ### Initialise project-kb in a project
@@ -38,9 +50,11 @@ This will:
 
 If `.project-kb/` already exists, the command will refuse to run unless you pass `--force`.
 
-### Locating the atami-ai repo
+### Template and skill source
 
-The CLI needs to know where the `atami-ai` shared repo lives on your machine. It checks these locations in order:
+By default, `atami kb init` falls back to the canonical GitHub repository and downloads the current template and project-kb skill files from there.
+
+For local development and tests, the CLI still prefers these local overrides in order:
 
 1. The `--template-source` flag if provided.
 2. The `ATAMI_AI_PATH` environment variable.
@@ -49,7 +63,7 @@ The CLI needs to know where the `atami-ai` shared repo lives on your machine. It
 5. `~/Code/atami-ai/`
 6. `~/dev/atami-ai/`
 
-If none of these work, set `ATAMI_AI_PATH` in your shell profile.
+If no local source is found, the CLI fetches `atami-ai/atami-ai@main` from GitHub. You can override the remote source with `ATAMI_GITHUB_OWNER`, `ATAMI_GITHUB_REPO`, and `ATAMI_GITHUB_REF`.
 
 ## Tests
 

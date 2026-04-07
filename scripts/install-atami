@@ -1,0 +1,42 @@
+#!/bin/sh
+
+set -eu
+
+if ! command -v go >/dev/null 2>&1; then
+  echo "Error: go is required to install atami." >&2
+  exit 1
+fi
+
+repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+tmp_root=${TMPDIR:-/tmp}
+
+GOCACHE=${GOCACHE:-${tmp_root%/}/atami-go-cache}
+GOMODCACHE=${GOMODCACHE:-${tmp_root%/}/atami-go-modcache}
+export GOCACHE GOMODCACHE
+
+mkdir -p "$GOCACHE" "$GOMODCACHE"
+
+echo "Installing atami from ${repo_root}/cli"
+(cd "${repo_root}/cli" && go install ./atami)
+
+gobin=$(go env GOBIN)
+if [ -n "$gobin" ]; then
+  bin_dir=$gobin
+else
+  gopath=$(go env GOPATH)
+  bin_dir=${gopath%:*}/bin
+fi
+
+echo "Installed binary: ${bin_dir}/atami"
+
+case ":$PATH:" in
+  *":${bin_dir}:"*)
+    echo "PATH already includes ${bin_dir}"
+    ;;
+  *)
+    echo "Add this to your shell profile if needed:"
+    echo "  export PATH=\"\$PATH:${bin_dir}\""
+    ;;
+esac
+
+echo "Run 'atami --version' to verify the install."

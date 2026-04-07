@@ -6,7 +6,7 @@ This repository contains:
 
 - **`project-kb/`** — the project knowledge base system: a folder structure and set of LLM skill files for capturing meeting notes, tracking items, and generating release notes.
 - **`skills/`** — general team skills not tied to project-kb (code review, testing conventions, etc.). Currently a placeholder.
-- **`cli/`** — source for the `atami` CLI tool that initializes project-kb in repos and syncs skills. Currently a placeholder.
+- **`cli/`** — source for the `atami` CLI tool that initializes project-kb in repos and will sync shared skills.
 
 ## What is project-kb?
 
@@ -22,13 +22,25 @@ See `project-kb/README.md` for the full system description.
 
 ## The atami CLI
 
-The `atami` CLI (not yet built) will provide commands like:
+Install the CLI from the repo root with:
+
+```sh
+./scripts/install-atami
+```
+
+If your team already uses `make`, the same flow is available as:
+
+```sh
+make install-atami
+```
+
+The `atami` CLI provides commands like:
 
 ```
 atami kb init                  # Scaffold project-kb into the current project
 atami kb process               # Process the inbox
 atami kb release --week        # Generate weekly release notes
-atami skills pull              # Refresh synced skills from this shared repo
+atami kb skills pull           # Refresh synced project-kb skills from this shared repo
 ```
 
-For now, this repo just contains the source-of-truth files. Until the CLI exists, manual `cp` from `project-kb/template/` and `project-kb/skills/` into a target project achieves the same result.
+`atami kb init` can use a local checkout during development, but the intended team workflow is that installed CLIs fetch canonical project-kb content from the shared repo remotely.
