@@ -6,7 +6,7 @@ This repo is the **source of truth**. Files here get synced into individual proj
 
 ## Repo structure
 
-- `project-kb/skills/` — canonical skill files for the project-kb system. Edit here; changes propagate to projects via cli app (not implemented yet).
+- `project-kb/skills/` — canonical skill files for the project-kb system. Edit here; changes propagate to projects via `atami kb skills pull`.
 - `project-kb/template/` — directory scaffolding copied into new projects by `atami kb init`. Includes the `AGENTS.md.snippet` that gets appended to a project's AGENTS.md.
 - `skills/` — placeholder for general (non-KB) team skills.
 - `cli/` — placeholder for the future `atami` CLI source.

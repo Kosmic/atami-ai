@@ -31,6 +31,7 @@ func TestInit_FreshDirectory(t *testing.T) {
 		filepath.Join(targetDir, ".project-kb", "outputs"),
 		filepath.Join(targetDir, ".project-kb", "skills"),
 		filepath.Join(targetDir, ".project-kb", "skills", "overrides"),
+		filepath.Join(targetDir, ".project-kb", ".gitignore"),
 		filepath.Join(targetDir, ".project-kb", "kb-config.yaml"),
 		filepath.Join(targetDir, "AGENTS.md"),
 	}
@@ -61,6 +62,14 @@ func TestInit_FreshDirectory(t *testing.T) {
 	}
 	if !strings.Contains(string(agentsBytes), "<!-- BEGIN atami project-kb -->") {
 		t.Fatalf("AGENTS.md is missing snippet markers:\n%s", string(agentsBytes))
+	}
+
+	gitignoreBytes, err := os.ReadFile(filepath.Join(targetDir, ".project-kb", ".gitignore"))
+	if err != nil {
+		t.Fatalf("ReadFile returned error for .gitignore: %v", err)
+	}
+	if string(gitignoreBytes) != "outputs/kanban.html\n" {
+		t.Fatalf("unexpected .gitignore content:\n%s", string(gitignoreBytes))
 	}
 
 	expectedSkills := map[string]string{

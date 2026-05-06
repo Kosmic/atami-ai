@@ -206,7 +206,8 @@ Before generating, count files matching `inbox/*.md` (top level only, not `inbox
 
 1. Tell the user the file path: `.project-kb/outputs/kanban.html`.
 2. Suggest opening it: `open .project-kb/outputs/kanban.html`.
-3. Note that to reflect future item changes, regenerate by asking again.
+3. Note that newly initialized project-kb directories gitignore this generated HTML file by default.
+4. Note that to reflect future item changes, regenerate by asking again.
 
 ## What to leave out
 

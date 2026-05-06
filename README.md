@@ -4,7 +4,7 @@ Shared home for the Atami team's AI-related assets.
 
 This repository contains:
 
-- **`project-kb/`** — the project knowledge base system: a folder structure and set of LLM skill files for capturing meeting notes, tracking items, and generating release notes.
+- **`project-kb/`** — the project knowledge base system: a folder structure and set of LLM skill files for capturing meeting notes, tracking items, generating a kanban board, and producing release notes.
 - **`skills/`** — general team skills not tied to project-kb (code review, testing conventions, etc.). Currently a placeholder.
 - **`cli/`** — source for the `atami` CLI tool that initializes project-kb in repos and will sync shared skills.
 
@@ -14,9 +14,11 @@ Project-kb is a lightweight, LLM-powered knowledge base that lives inside each o
 
 1. Turn unstructured meeting notes into organised, actionable items.
 2. Generate shareable outputs (HTML pages, summaries) that explain technical problems to non-developers.
-3. Maintain release notes automatically as work gets completed.
+3. Generate a local read-only kanban board for triage.
+4. Maintain release notes automatically as work gets completed.
 
 Each project gets its own `.project-kb/` directory containing inputs, compiled items, and project-specific overrides. The skill files that drive the LLM behaviour are synced from this shared repo.
+Newly initialized projects also get a `.project-kb/.gitignore` so generated `.project-kb/outputs/kanban.html` files stay local by default.
 
 See `project-kb/README.md` for the full system description.
 

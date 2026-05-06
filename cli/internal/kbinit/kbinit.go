@@ -27,6 +27,7 @@ var createdSummaryPaths = []string{
 	filepath.Join(".project-kb", "outputs") + string(os.PathSeparator),
 	filepath.Join(".project-kb", "skills") + string(os.PathSeparator),
 	filepath.Join(".project-kb", "skills", "overrides") + string(os.PathSeparator),
+	filepath.Join(".project-kb", ".gitignore"),
 	filepath.Join(".project-kb", "kb-config.yaml"),
 }
 

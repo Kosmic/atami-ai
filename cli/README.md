@@ -53,6 +53,8 @@ This will:
 2. Sync the canonical skill files from the atami-ai shared repo.
 3. Append a project-kb section to your `AGENTS.md` (creating it if missing).
 
+The generated `.project-kb/` includes its own `.gitignore`. It ignores `.project-kb/outputs/kanban.html`, so project-local kanban board HTML can be generated without being committed.
+
 If `.project-kb/` already exists, the command will refuse to run unless you pass `--force`.
 
 ### Template and skill source
