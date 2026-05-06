@@ -65,6 +65,7 @@ func TestInit_FreshDirectory(t *testing.T) {
 
 	expectedSkills := map[string]string{
 		"generate-output.md": "# Test generate-output skill\n",
+		"kanban-board.md":    "# Test kanban-board skill\n",
 		"process-inbox.md":   "# Test process-inbox skill\n",
 		"release-notes.md":   "# Test release-notes skill\n",
 	}
@@ -78,7 +79,7 @@ func TestInit_FreshDirectory(t *testing.T) {
 		}
 	}
 
-	if len(result.SyncedSkillFiles) != 3 {
+	if len(result.SyncedSkillFiles) != 4 {
 		t.Fatalf("unexpected synced skill count: %d", len(result.SyncedSkillFiles))
 	}
 	if !result.AgentsMD.FileCreated || !result.AgentsMD.SnippetAdded {

@@ -9,7 +9,7 @@ This project contains a knowledge base in `.project-kb/`. It tracks features, bu
 - `.project-kb/items/` — structured items compiled from inbox contents. Maintained by the agent. Humans read but don't edit them.
 - `.project-kb/releases/` — release notes generated on request.
 - `.project-kb/outputs/` — shareable artifacts (HTML pages, summaries) generated for specific team members.
-- `.project-kb/skills/` — instruction files that tell the agent how to perform KB tasks. Synced from the atami-ai repo via `atami skills pull`.
+- `.project-kb/skills/` — instruction files that tell the agent how to perform KB tasks. Synced from the atami-ai repo via `atami kb skills pull`.
 - `.project-kb/skills/overrides/` — project-specific overrides of the standard skills. Take precedence over the synced versions.
 - `.project-kb/kb-config.yaml` — project name, team members, and their roles.
 
@@ -20,6 +20,7 @@ Before performing any KB action, read the relevant skill file:
 - For processing the inbox: read `.project-kb/skills/overrides/process-inbox.md` if it exists, otherwise `.project-kb/skills/process-inbox.md`.
 - For generating shareable outputs: read `.project-kb/skills/overrides/generate-output.md` if it exists, otherwise `.project-kb/skills/generate-output.md`.
 - For generating release notes: read `.project-kb/skills/overrides/release-notes.md` if it exists, otherwise `.project-kb/skills/release-notes.md`.
+- For generating the kanban board: read `.project-kb/skills/overrides/kanban-board.md` if it exists, otherwise `.project-kb/skills/kanban-board.md`.
 
 ### KB rules
 
