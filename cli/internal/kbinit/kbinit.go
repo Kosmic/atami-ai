@@ -175,33 +175,39 @@ func copyTree(srcRoot string, dstRoot string) error {
 }
 
 func copySkillFiles(skillsDir string, targetSkillsDir string) ([]string, error) {
-	matches, err := filepath.Glob(filepath.Join(skillsDir, "*.md"))
+	entries, err := os.ReadDir(skillsDir)
 	if err != nil {
 		return nil, fmt.Errorf("listing skill files: %w", err)
 	}
-	if len(matches) == 0 {
-		return nil, fmt.Errorf("canonical skills directory contains no top-level .md files: %s", skillsDir)
-	}
-
-	sort.Strings(matches)
 
 	var synced []string
-	for _, path := range matches {
-		info, err := os.Stat(path)
-		if err != nil {
-			return nil, fmt.Errorf("statting skill file %q: %w", path, err)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
 		}
-		if info.IsDir() {
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") {
 			continue
 		}
 
-		targetPath := filepath.Join(targetSkillsDir, filepath.Base(path))
+		path := filepath.Join(skillsDir, name)
+		info, err := entry.Info()
+		if err != nil {
+			return nil, fmt.Errorf("statting skill file %q: %w", path, err)
+		}
+
+		targetPath := filepath.Join(targetSkillsDir, name)
 		if err := copyFile(path, targetPath, info.Mode().Perm()); err != nil {
 			return nil, err
 		}
-		synced = append(synced, filepath.Base(path))
+		synced = append(synced, name)
 	}
 
+	if len(synced) == 0 {
+		return nil, fmt.Errorf("canonical skills directory contains no skill files: %s", skillsDir)
+	}
+
+	sort.Strings(synced)
 	return synced, nil
 }
 

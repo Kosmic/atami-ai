@@ -17,9 +17,10 @@ func TestPull_FreshSkillsDirectory(t *testing.T) {
 	}
 
 	server := newSkillsServer(t, map[string]string{
-		"process-inbox.md":   "# downloaded process-inbox.md\n",
-		"generate-output.md": "# downloaded generate-output.md\n",
-		"release-notes.md":   "# downloaded release-notes.md\n",
+		"process-inbox.md":            "# downloaded process-inbox.md\n",
+		"generate-output.md":          "# downloaded generate-output.md\n",
+		"release-notes.md":            "# downloaded release-notes.md\n",
+		"kanban-board.template.html": "<!-- downloaded kanban-board.template.html -->\n",
 	})
 	defer server.Close()
 
@@ -35,7 +36,7 @@ func TestPull_FreshSkillsDirectory(t *testing.T) {
 		t.Fatalf("Pull returned error: %v", err)
 	}
 
-	for _, name := range []string{"generate-output.md", "process-inbox.md", "release-notes.md"} {
+	for _, name := range []string{"generate-output.md", "process-inbox.md", "release-notes.md", "kanban-board.template.html"} {
 		content, err := os.ReadFile(filepath.Join(targetDir, ".project-kb", "skills", name))
 		if err != nil {
 			t.Fatalf("ReadFile returned error for %s: %v", name, err)
@@ -46,10 +47,10 @@ func TestPull_FreshSkillsDirectory(t *testing.T) {
 	}
 
 	state := readStateFile(t, filepath.Join(targetDir, ".project-kb", stateDirName, stateFileName))
-	if len(state.Files) != 3 {
+	if len(state.Files) != 4 {
 		t.Fatalf("unexpected state file count: %d", len(state.Files))
 	}
-	if len(result.UpdatedFiles) != 3 {
+	if len(result.UpdatedFiles) != 4 {
 		t.Fatalf("unexpected updated file count: %d", len(result.UpdatedFiles))
 	}
 }
@@ -245,10 +246,10 @@ func newSkillsServer(t *testing.T, files map[string]string) *httptest.Server {
 			for name := range files {
 				entries = append(entries, `{"name":"`+name+`","type":"file","download_url":"`+baseURL+`/downloads/`+name+`"}`)
 			}
-			entries = append(entries, `{"name":"README.txt","type":"file","download_url":"`+baseURL+`/downloads/README.txt"}`)
+			entries = append(entries, `{"name":".hidden-file","type":"file","download_url":"`+baseURL+`/downloads/.hidden-file"}`)
 			entries = append(entries, `{"name":"nested","type":"dir","download_url":""}`)
 			_, _ = w.Write([]byte("[" + strings.Join(entries, ",") + "]"))
-		case "/downloads/README.txt":
+		case "/downloads/.hidden-file":
 			_, _ = w.Write([]byte("ignore me\n"))
 		default:
 			const prefix = "/downloads/"

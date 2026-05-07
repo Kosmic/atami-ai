@@ -240,7 +240,7 @@ func listRemoteSkillFiles(opts Options) ([]contentEntry, error) {
 		if entry.Type != "file" {
 			continue
 		}
-		if filepath.Ext(entry.Name) != ".md" {
+		if strings.HasPrefix(entry.Name, ".") {
 			continue
 		}
 		if entry.DownloadURL == "" {
@@ -250,7 +250,7 @@ func listRemoteSkillFiles(opts Options) ([]contentEntry, error) {
 	}
 
 	if len(filtered) == 0 {
-		return nil, fmt.Errorf("no top-level .md files found in %s/%s %s at %s", opts.Owner, opts.Repo, skillsAPIPath, opts.Ref)
+		return nil, fmt.Errorf("no top-level skill files found in %s/%s %s at %s", opts.Owner, opts.Repo, skillsAPIPath, opts.Ref)
 	}
 
 	sort.Slice(filtered, func(i, j int) bool {

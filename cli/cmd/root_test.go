@@ -194,7 +194,7 @@ func TestKbInit_EndToEndHappyPath(t *testing.T) {
 	}
 
 	expected := fmt.Sprintf(
-		"✓ Initialised .project-kb in %s\n\nCreated:\n  .project-kb/inbox/archive/\n  .project-kb/items/index.md\n  .project-kb/releases/\n  .project-kb/outputs/\n  .project-kb/skills/\n  .project-kb/skills/overrides/\n  .project-kb/.gitignore\n  .project-kb/kb-config.yaml\n\nSynced 4 skill files into .project-kb/skills/\n\nCreated AGENTS.md (added project-kb section)\n\nNext steps:\n  1. Edit .project-kb/kb-config.yaml to set the project name and team members.\n  2. Drop your first unstructured meeting notes/bug/task into .project-kb/inbox/.\n  3. Ask your coding agent to process the inbox.\n",
+		"✓ Initialised .project-kb in %s\n\nCreated:\n  .project-kb/inbox/archive/\n  .project-kb/items/index.md\n  .project-kb/releases/\n  .project-kb/outputs/\n  .project-kb/skills/\n  .project-kb/skills/overrides/\n  .project-kb/.gitignore\n  .project-kb/kb-config.yaml\n\nSynced 5 skill files into .project-kb/skills/\n\nCreated AGENTS.md (added project-kb section)\n\nNext steps:\n  1. Edit .project-kb/kb-config.yaml to set the project name and team members.\n  2. Drop your first unstructured meeting notes/bug/task into .project-kb/inbox/.\n  3. Ask your coding agent to process the inbox.\n",
 		cwd,
 	)
 	if stdout != expected {
