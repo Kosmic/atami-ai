@@ -179,6 +179,12 @@ h1 { margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.02em; colo
   margin-top: 8px; padding-top: 8px;
   border-top: 1px dashed var(--slate-100);
 }
+.card-filename[data-copy-filename] {
+  cursor: copy;
+}
+.card-filename[data-copy-filename]:hover {
+  color: var(--slate-700);
+}
 
 .pending-indicator {
   position: absolute; top: 10px; right: 10px;
@@ -766,6 +772,10 @@ function renderEyebrow() {
   document.getElementById('eyebrow').textContent = EYEBROW;
 }
 
+function renderDocumentTitle() {
+  document.title = PROJECT === 'default' ? 'Kanban' : EYEBROW + ' Kanban';
+}
+
 function renderSubtitle(activeCount) {
   const sub = document.getElementById('subtitle');
   const pc = pendingCount();
@@ -941,7 +951,7 @@ function makeCard(item, columnKey, isArchive) {
     '<div class="card-meta">' + primaryBadge + '<span class="card-date">' + relDate(item.updated) + '</span></div>' +
     '<div class="card-title">' + escHtml(item.title) + '</div>' +
     '<div class="card-teaser">' + escHtml(deriveTeaser(item.body)) + '</div>' +
-    '<div class="card-filename">' + escHtml(item.id) + '.md</div>';
+    '<div class="card-filename" data-copy-filename="' + escAttr(item.id) + '.md" title="Copy filename to clipboard">' + escHtml(item.id) + '.md</div>';
 
   let didDrag = false;
   card.addEventListener('dragstart', e => {
@@ -966,6 +976,12 @@ function makeCard(item, columnKey, isArchive) {
     if (rb) { revertDelta(rb.dataset.revertId); e.stopPropagation(); return; }
     const db = e.target.closest('[data-discard-id]');
     if (db) { discardDelta(db.dataset.discardId); e.stopPropagation(); return; }
+    const filename = e.target.closest('[data-copy-filename]');
+    if (filename) {
+      copyText(filename.dataset.copyFilename, 'Copied ' + filename.dataset.copyFilename);
+      e.stopPropagation();
+      return;
+    }
     if (didDrag) return;
     openPanel(item.id);
   });
@@ -1232,6 +1248,7 @@ window.addEventListener('resize', () => {
   document.querySelectorAll('.card').forEach(c => c.draggable = window.innerWidth >= 800);
 });
 
+renderDocumentTitle();
 renderEyebrow();
 renderInboxBanner();
 render();

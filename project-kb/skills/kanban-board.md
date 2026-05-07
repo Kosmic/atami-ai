@@ -129,11 +129,12 @@ The pasted block contains only status and type changes. Reorder is never sent (i
 You don't need to re-derive any of this when building — it's all already in `assets/kanban-board.template.html`. Listed so you know what features the user is getting:
 
 - Header with eyebrow, "Kanban" H1, subtitle showing `<active count> active items · Generated YYYY-MM-DD`, plus pending-changes link when any deltas are staged.
+- Browser tab title set to `<project> Kanban` when a project name is available.
 - `Group by: [Type] [Status]` segmented toggle (default `type`, persisted in localStorage), and a `?` help icon that auto-opens on first visit.
 - Inbox banner with three states: empty (slate), 1 file (amber, lists name), 2+ files (amber, lists names).
 - Active board grid: in **Group by Type** mode, columns are `task` and `discussion` (always rendered) plus `feature`/`bug` if any active items have those types. In **Group by Status**, columns are `discussed`/`planned`/`in-progress`/`done`/`dropped` always.
 - Archive `<details>` (Group by Type only) with sub-columns Done and Dropped.
-- Cards: primary badge (status when grouped by type, type when grouped by status; always type in archive), relative updated date ("today", "yesterday", "N days ago", etc.), title, two-line teaser derived from `## Summary` (or first paragraph if absent), filename footer.
+- Cards: primary badge (status when grouped by type, type when grouped by status; always type in archive), relative updated date ("today", "yesterday", "N days ago", etc.), title, two-line teaser derived from `## Summary` (or first paragraph if absent), copyable filename footer.
 - Pending-state amber-dashed border and ● indicator with a hover ↺ revert button. Stale-state rose-dashed border and ⚠ indicator with hover ✕ discard button.
 - Drag-and-drop between columns to stage status/type changes; drag within a column to reorder (local-only). Disabled below 800px viewport width.
 - Side panel slides in from the right when a card is clicked. Shows type/status/updated/created badges, a clickable `Source <filename>` button that copies the filename to clipboard, the rendered markdown body, and any pending-change notes.
