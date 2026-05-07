@@ -64,7 +64,7 @@ Replace with the array of item objects (see [Item shape](#item-shape) below).
 
 ### Steps
 
-1. If `.project-kb/outputs/kanban.html` does not exist, copy the template:
+1. If `.project-kb/outputs/kanban.html` does not exist, or exists but does not contain both `KANBAN_VARS_START` and `KANBAN_ITEMS_START` markers, copy the template over it:
    ```
    cp .project-kb/skills/kanban-board.template.html .project-kb/outputs/kanban.html
    ```

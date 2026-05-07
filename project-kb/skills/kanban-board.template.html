@@ -567,6 +567,9 @@ function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function escAttr(s) {
+  return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 function md2html(md) {
   if (!md) return '';
@@ -632,7 +635,7 @@ function mdInline(s) {
         if (ue > close) {
           const text = s.slice(i + 1, close), url = s.slice(close + 2, ue);
           const ext = /^https?:\/\//.test(url);
-          out += '<a href="' + escHtml(url) + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '>' + mdInline(text) + '</a>';
+          out += '<a href="' + escAttr(url) + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '>' + mdInline(text) + '</a>';
           i = ue + 1; continue;
         }
       }
@@ -797,7 +800,11 @@ function buildBoard() {
 
   if (state.groupBy === 'type') {
     archive.style.display = '';
-    const activeItems = ITEMS.filter(i => i.status !== 'done' && i.status !== 'dropped');
+    const activeItems = ITEMS.filter(i => {
+      const eff = effectiveItem(i);
+      const s = eff.pendingFlag === 'stale' ? i.status : eff.effStatus;
+      return s !== 'done' && s !== 'dropped';
+    });
     const presentTypes = TYPE_ORDER.filter(t =>
       ['task','discussion'].includes(t) || activeItems.some(i => effectiveItem(i).effType === t)
     );
@@ -1129,15 +1136,7 @@ function openPanel(id) {
     '<h2>' + escHtml(item.title) + '</h2>' +
     '<div class="panel-body">' + md2html(item.body) + '</div>';
   document.getElementById('copy-source-btn').addEventListener('click', () => {
-    navigator.clipboard.writeText(item.source).then(
-      () => showToast('Copied ' + item.source),
-      () => {
-        const ta = document.createElement('textarea');
-        ta.value = item.source; document.body.appendChild(ta); ta.select();
-        document.execCommand('copy'); ta.remove();
-        showToast('Copied ' + item.source);
-      }
-    );
+    copyText(item.source, 'Copied ' + item.source);
   });
   document.getElementById('panel').classList.add('open');
   document.getElementById('panel').setAttribute('aria-hidden', 'false');
@@ -1147,6 +1146,23 @@ function closePanel() {
   document.getElementById('panel').classList.remove('open');
   document.getElementById('panel').setAttribute('aria-hidden', 'true');
   document.getElementById('panel-backdrop').classList.remove('open');
+}
+
+function copyText(text, successMessage) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    navigator.clipboard.writeText(text).then(
+      () => showToast(successMessage),
+      () => fallbackCopyText(text, successMessage)
+    );
+    return;
+  }
+  fallbackCopyText(text, successMessage);
+}
+function fallbackCopyText(text, successMessage) {
+  const ta = document.createElement('textarea');
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  document.execCommand('copy'); ta.remove();
+  showToast(successMessage);
 }
 
 function copyAsInstructions() {
@@ -1159,14 +1175,7 @@ function copyAsInstructions() {
   lines.push('');
   lines.push('(Generated from kanban.html at ' + new Date().toISOString() + ')');
   const text = lines.join('\n');
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('Copied to clipboard — paste it to the agent');
-  }, () => {
-    const ta = document.createElement('textarea');
-    ta.value = text; document.body.appendChild(ta); ta.select();
-    document.execCommand('copy'); ta.remove();
-    showToast('Copied to clipboard — paste it to the agent');
-  });
+  copyText(text, 'Copied to clipboard — paste it to the agent');
 }
 function showToast(msg) {
   const t = document.getElementById('toast');
