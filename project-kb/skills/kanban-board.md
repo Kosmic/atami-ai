@@ -35,6 +35,8 @@ Nothing else needs to change. The HTML structure, CSS, and JS rendering logic st
 
 If the file does **not** exist, generate from scratch using the design spec below.
 
+If the existing file is missing a feature from the current design spec (e.g. no filename footer on cards), treat it as out of date and regenerate from scratch rather than taking the fast path.
+
 ## Design spec
 
 Use this spec when generating from scratch or when verifying that an existing file matches the agreed design.
@@ -65,6 +67,7 @@ Each card is a `<button>` (so it's keyboard-focusable) styled to look like a car
 - The relative updated date (top-right), e.g. "today", "yesterday", "4 weeks ago".
 - The item title.
 - A two-line teaser (CSS line-clamp).
+- The exact item filename (e.g. `task-foo-bar.md`) as a small muted monospace footer at the bottom of the card. This lets the user copy/paste it when asking the agent to edit the underlying file.
 
 Click → opens the side panel for that item.
 
