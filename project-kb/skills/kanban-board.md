@@ -128,7 +128,7 @@ When opened, the panel shows:
    - Status badge (color-coded). If the card has a pending delta, the affected badge shows the pending value with an amber outline; an inline note reads `Pending: <field> <from> → <to>`.
    - `Updated YYYY-MM-DD`.
    - `Created YYYY-MM-DD`.
-   - `Source <filename>`.
+   - `Source <filename>` — rendered as a clickable button. Click copies just the raw `<filename>` (no `Source ` prefix) to the clipboard via `navigator.clipboard.writeText`, with a transient toast confirmation (`Copied <filename>`). Hover shows a subtle background change to signal interactivity; `title` attribute reads `Copy filename to clipboard`.
 2. The item title as a large heading.
 3. The item's full markdown body, **pre-rendered to HTML at build time**.
 
