@@ -73,11 +73,11 @@ func TestInit_FreshDirectory(t *testing.T) {
 	}
 
 	expectedSkills := map[string]string{
-		"generate-output.md":          "# Test generate-output skill\n",
-		"kanban-board.md":             "# Test kanban-board skill\n",
-		"kanban-board.template.html": "<!-- Test kanban-board template fixture -->\n",
-		"process-inbox.md":            "# Test process-inbox skill\n",
-		"release-notes.md":            "# Test release-notes skill\n",
+		"assets/kanban-board.template.html": "<!-- Test kanban-board template fixture -->\n",
+		"generate-output.md":                "# Test generate-output skill\n",
+		"kanban-board.md":                   "# Test kanban-board skill\n",
+		"process-inbox.md":                  "# Test process-inbox skill\n",
+		"release-notes.md":                  "# Test release-notes skill\n",
 	}
 	for name, expected := range expectedSkills {
 		skillBytes, err := os.ReadFile(filepath.Join(targetDir, ".project-kb", "skills", name))

@@ -17,10 +17,10 @@ func TestPull_FreshSkillsDirectory(t *testing.T) {
 	}
 
 	server := newSkillsServer(t, map[string]string{
-		"process-inbox.md":            "# downloaded process-inbox.md\n",
-		"generate-output.md":          "# downloaded generate-output.md\n",
-		"release-notes.md":            "# downloaded release-notes.md\n",
-		"kanban-board.template.html": "<!-- downloaded kanban-board.template.html -->\n",
+		"assets/kanban-board.template.html": "<!-- downloaded kanban-board.template.html -->\n",
+		"process-inbox.md":                  "# downloaded process-inbox.md\n",
+		"generate-output.md":                "# downloaded generate-output.md\n",
+		"release-notes.md":                  "# downloaded release-notes.md\n",
 	})
 	defer server.Close()
 
@@ -36,12 +36,12 @@ func TestPull_FreshSkillsDirectory(t *testing.T) {
 		t.Fatalf("Pull returned error: %v", err)
 	}
 
-	for _, name := range []string{"generate-output.md", "process-inbox.md", "release-notes.md", "kanban-board.template.html"} {
+	for _, name := range []string{"assets/kanban-board.template.html", "generate-output.md", "process-inbox.md", "release-notes.md"} {
 		content, err := os.ReadFile(filepath.Join(targetDir, ".project-kb", "skills", name))
 		if err != nil {
 			t.Fatalf("ReadFile returned error for %s: %v", name, err)
 		}
-		if !strings.Contains(string(content), name) {
+		if !strings.Contains(string(content), filepath.Base(name)) {
 			t.Fatalf("unexpected content for %s: %q", name, string(content))
 		}
 	}
@@ -239,17 +239,31 @@ func newSkillsServer(t *testing.T, files map[string]string) *httptest.Server {
 
 	var baseURL string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/repos/Kosmic/atami-ai/contents/project-kb/skills":
+		const contentsPrefix = "/repos/Kosmic/atami-ai/contents/project-kb/skills"
+		switch {
+		case r.URL.Path == contentsPrefix || strings.HasPrefix(r.URL.Path, contentsPrefix+"/"):
+			relDir := strings.TrimPrefix(r.URL.Path, contentsPrefix)
+			relDir = strings.TrimPrefix(relDir, "/")
+
 			w.Header().Set("Content-Type", "application/json")
 			var entries []string
 			for name := range files {
-				entries = append(entries, `{"name":"`+name+`","type":"file","download_url":"`+baseURL+`/downloads/`+name+`"}`)
+				dir, base := filepath.Split(name)
+				dir = strings.TrimSuffix(filepath.ToSlash(dir), "/")
+				if dir == relDir {
+					entries = append(entries, `{"name":"`+base+`","type":"file","download_url":"`+baseURL+`/downloads/`+name+`"}`)
+					continue
+				}
+				if relDir == "" && strings.Contains(name, "/") {
+					topDir := strings.SplitN(name, "/", 2)[0]
+					entries = append(entries, `{"name":"`+topDir+`","type":"dir","download_url":""}`)
+				}
 			}
-			entries = append(entries, `{"name":".hidden-file","type":"file","download_url":"`+baseURL+`/downloads/.hidden-file"}`)
-			entries = append(entries, `{"name":"nested","type":"dir","download_url":""}`)
+			if relDir == "" {
+				entries = append(entries, `{"name":".hidden-file","type":"file","download_url":"`+baseURL+`/downloads/.hidden-file"}`)
+			}
 			_, _ = w.Write([]byte("[" + strings.Join(entries, ",") + "]"))
-		case "/downloads/.hidden-file":
+		case r.URL.Path == "/downloads/.hidden-file":
 			_, _ = w.Write([]byte("ignore me\n"))
 		default:
 			const prefix = "/downloads/"

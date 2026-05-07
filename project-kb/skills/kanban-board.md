@@ -26,7 +26,9 @@ Always write the file to:
 
 ## Build flow
 
-The skill ships a fully built template at `.project-kb/skills/kanban-board.template.html`. All HTML, CSS, JS, drag-and-drop, side panel, pending-changes tray, help modal, and the inline markdown renderer live there — you do not regenerate any of that.
+The skill ships a fully built template at `.project-kb/skills/assets/kanban-board.template.html`. All HTML, CSS, JS, drag-and-drop, side panel, pending-changes tray, help modal, and the inline markdown renderer live there — you do not regenerate any of that.
+
+For migration compatibility, older projects may still have the template at `.project-kb/skills/kanban-board.template.html`. Prefer the `assets/` path when it exists, but use the old top-level path as a fallback rather than regenerating the template by hand.
 
 **Two slots in the template are designed to be substituted at build time**, each bounded by stable marker comments. Use the `Edit` tool to swap each slot in place; do **not** rewrite the whole file.
 
@@ -64,17 +66,18 @@ Replace with the array of item objects (see [Item shape](#item-shape) below).
 
 ### Steps
 
-1. If `.project-kb/outputs/kanban.html` does not exist, or exists but does not contain both `KANBAN_VARS_START` and `KANBAN_ITEMS_START` markers, copy the template over it:
+1. If `.project-kb/outputs/kanban.html` does not exist, or exists but does not contain both `KANBAN_VARS_START` and `KANBAN_ITEMS_START` markers, copy the template over it. Prefer the current asset path:
    ```
-   cp .project-kb/skills/kanban-board.template.html .project-kb/outputs/kanban.html
+   cp .project-kb/skills/assets/kanban-board.template.html .project-kb/outputs/kanban.html
    ```
+   If that file is missing but `.project-kb/skills/kanban-board.template.html` exists, copy the old top-level template instead.
 2. Compute the new values for slot 1 and the new `ITEMS` array for slot 2.
 3. `Edit` the output file twice — once for each slot, matching the marker-bounded block exactly.
 4. Done. Tell the user the path and suggest `open .project-kb/outputs/kanban.html`.
 
 The user's pending changes live in **localStorage**, not in the HTML file, so they survive regeneration automatically. On the next page load the JS reads localStorage, auto-clears deltas whose `to` value matches the new source state, and flags stale ones whose `from` no longer matches.
 
-If `.project-kb/skills/kanban-board.template.html` is missing (older project that hasn't run `atami kb skills pull` recently), see [Recovering when the template is missing](#recovering-when-the-template-is-missing) at the bottom of this file.
+If both `.project-kb/skills/assets/kanban-board.template.html` and `.project-kb/skills/kanban-board.template.html` are missing (older project that hasn't run `atami kb skills pull` recently), see [Recovering when the template is missing](#recovering-when-the-template-is-missing) at the bottom of this file.
 
 ## Item shape
 
@@ -123,7 +126,7 @@ The pasted block contains only status and type changes. Reorder is never sent (i
 
 ## What the template provides (for reference)
 
-You don't need to re-derive any of this when building — it's all already in `kanban-board.template.html`. Listed so you know what features the user is getting:
+You don't need to re-derive any of this when building — it's all already in `assets/kanban-board.template.html`. Listed so you know what features the user is getting:
 
 - Header with eyebrow, "Kanban" H1, subtitle showing `<active count> active items · Generated YYYY-MM-DD`, plus pending-changes link when any deltas are staged.
 - `Group by: [Type] [Status]` segmented toggle (default `type`, persisted in localStorage), and a `?` help icon that auto-opens on first visit.
@@ -138,7 +141,7 @@ You don't need to re-derive any of this when building — it's all already in `k
 
 ## Recovering when the template is missing
 
-If `.project-kb/skills/kanban-board.template.html` does not exist (e.g., the project was initialized before the template existed and hasn't synced skills since):
+If neither `.project-kb/skills/assets/kanban-board.template.html` nor the legacy `.project-kb/skills/kanban-board.template.html` exists (e.g., the project was initialized before the template existed and hasn't synced skills since):
 
 1. Tell the user. Suggest they run `atami kb skills pull` to sync the latest skills, including the template.
 2. If they want to proceed anyway without the template, you can copy the canonical template content from the canonical source — but do not attempt to regenerate it from a spec by hand. The template is ~700 lines of CSS/JS/HTML and re-deriving it is slow and error-prone. Prefer asking them to sync.

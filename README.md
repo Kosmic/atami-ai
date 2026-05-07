@@ -46,4 +46,4 @@ atami kb skills pull           # Refresh synced project-kb skills from this shar
 ```
 
 `atami kb init` fetches canonical project-kb content from the shared repo by default. Local checkouts are only used when explicitly requested for development.
-`atami kb skills pull` uses a narrower per-file sync model for `project-kb/skills/*.md`, leaves `.project-kb/skills/overrides/` untouched, and tracks last-synced hashes so local edits to synced files are detected before overwrite.
+`atami kb skills pull` syncs the canonical files under `project-kb/skills/`, including shared skill assets, leaves `.project-kb/skills/overrides/` untouched, and tracks last-synced hashes so local edits to synced files are detected before overwrite.

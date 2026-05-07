@@ -9,7 +9,7 @@ import (
 )
 
 func TestKanbanTemplateBuildsTypeColumnsFromEffectiveStatus(t *testing.T) {
-	template := readRepoFile(t, "project-kb", "skills", "kanban-board.template.html")
+	template := readRepoFile(t, "project-kb", "skills", "assets", "kanban-board.template.html")
 
 	if strings.Contains(template, "const activeItems = ITEMS.filter(i => i.status !== 'done' && i.status !== 'dropped');") {
 		t.Fatal("type columns still use source status only")
@@ -30,8 +30,19 @@ func TestKanbanSkillReplacesOutputWhenMarkersAreMissing(t *testing.T) {
 	}
 }
 
+func TestKanbanSkillDocumentsLegacyTemplateFallback(t *testing.T) {
+	skill := readRepoFile(t, "project-kb", "skills", "kanban-board.md")
+
+	if !strings.Contains(skill, ".project-kb/skills/assets/kanban-board.template.html") {
+		t.Fatal("skill does not reference the canonical template asset path")
+	}
+	if !strings.Contains(skill, ".project-kb/skills/kanban-board.template.html") {
+		t.Fatal("skill does not document the legacy template fallback path")
+	}
+}
+
 func TestKanbanTemplateClipboardFallbackDoesNotAssumeClipboardAPI(t *testing.T) {
-	template := readRepoFile(t, "project-kb", "skills", "kanban-board.template.html")
+	template := readRepoFile(t, "project-kb", "skills", "assets", "kanban-board.template.html")
 
 	if !strings.Contains(template, "function copyText(text, successMessage)") {
 		t.Fatal("missing shared clipboard helper")
@@ -48,7 +59,7 @@ func TestKanbanTemplateClipboardFallbackDoesNotAssumeClipboardAPI(t *testing.T) 
 }
 
 func TestKanbanTemplateEscapesMarkdownLinkHrefAttributes(t *testing.T) {
-	template := readRepoFile(t, "project-kb", "skills", "kanban-board.template.html")
+	template := readRepoFile(t, "project-kb", "skills", "assets", "kanban-board.template.html")
 
 	if !strings.Contains(template, "function escAttr(s)") {
 		t.Fatal("missing attribute escaping helper")

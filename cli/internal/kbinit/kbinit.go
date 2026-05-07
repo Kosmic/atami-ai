@@ -175,32 +175,51 @@ func copyTree(srcRoot string, dstRoot string) error {
 }
 
 func copySkillFiles(skillsDir string, targetSkillsDir string) ([]string, error) {
-	entries, err := os.ReadDir(skillsDir)
-	if err != nil {
-		return nil, fmt.Errorf("listing skill files: %w", err)
-	}
-
 	var synced []string
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+	err := filepath.WalkDir(skillsDir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return fmt.Errorf("walking skill files: %w", walkErr)
 		}
+
+		relPath, err := filepath.Rel(skillsDir, path)
+		if err != nil {
+			return fmt.Errorf("computing relative skill path for %q: %w", path, err)
+		}
+		if relPath == "." {
+			return nil
+		}
+
 		name := entry.Name()
 		if strings.HasPrefix(name, ".") {
-			continue
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.IsDir() {
+			if relPath == "overrides" {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 
-		path := filepath.Join(skillsDir, name)
 		info, err := entry.Info()
 		if err != nil {
-			return nil, fmt.Errorf("statting skill file %q: %w", path, err)
+			return fmt.Errorf("statting skill file %q: %w", path, err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("unsupported file type in canonical skills: %s", path)
 		}
 
-		targetPath := filepath.Join(targetSkillsDir, name)
+		targetPath := filepath.Join(targetSkillsDir, relPath)
 		if err := copyFile(path, targetPath, info.Mode().Perm()); err != nil {
-			return nil, err
+			return err
 		}
-		synced = append(synced, name)
+		synced = append(synced, filepath.ToSlash(relPath))
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing skill files: %w", err)
 	}
 
 	if len(synced) == 0 {

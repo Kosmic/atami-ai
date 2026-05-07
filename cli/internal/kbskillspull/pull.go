@@ -53,6 +53,7 @@ type contentEntry struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	DownloadURL string `json:"download_url"`
+	RelPath     string `json:"-"`
 }
 
 type syncState struct {
@@ -108,16 +109,16 @@ func Pull(opts Options) (Result, error) {
 
 	result := Result{TargetDir: opts.TargetDir}
 	for _, entry := range entries {
-		targetPath := filepath.Join(targetSkillsDir, entry.Name)
-		relativePath := filepath.ToSlash(filepath.Join(".project-kb", "skills", entry.Name))
+		targetPath := filepath.Join(targetSkillsDir, filepath.FromSlash(entry.RelPath))
+		relativePath := filepath.ToSlash(filepath.Join(".project-kb", "skills", filepath.FromSlash(entry.RelPath)))
 
 		remoteContent, err := fetchFileContent(opts.HTTPClient, entry.DownloadURL)
 		if err != nil {
-			return Result{}, fmt.Errorf("downloading %s: %w", entry.Name, err)
+			return Result{}, fmt.Errorf("downloading %s: %w", entry.RelPath, err)
 		}
 		remoteHash := sha256Hex(remoteContent)
 
-		fileState, tracked := state.Files[entry.Name]
+		fileState, tracked := state.Files[entry.RelPath]
 		localContent, localExists, err := readFileIfExists(targetPath)
 		if err != nil {
 			return Result{}, fmt.Errorf("reading local skill file %q: %w", targetPath, err)
@@ -126,17 +127,17 @@ func Pull(opts Options) (Result, error) {
 		switch {
 		case !tracked:
 			if err := writeContent(targetPath, remoteContent); err != nil {
-				return Result{}, fmt.Errorf("writing %s: %w", entry.Name, err)
+				return Result{}, fmt.Errorf("writing %s: %w", entry.RelPath, err)
 			}
 			result.UpdatedFiles = append(result.UpdatedFiles, relativePath)
-			state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+			state.Files[entry.RelPath] = stateFileInfo{SyncedSHA256: remoteHash}
 		case !localExists:
 			if opts.Force {
 				if err := writeContent(targetPath, remoteContent); err != nil {
-					return Result{}, fmt.Errorf("writing %s: %w", entry.Name, err)
+					return Result{}, fmt.Errorf("writing %s: %w", entry.RelPath, err)
 				}
 				result.UpdatedFiles = append(result.UpdatedFiles, relativePath)
-				state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+				state.Files[entry.RelPath] = stateFileInfo{SyncedSHA256: remoteHash}
 				continue
 			}
 			result.SkippedFiles = append(result.SkippedFiles, SkippedFile{
@@ -149,19 +150,19 @@ func Pull(opts Options) (Result, error) {
 			switch {
 			case localHash == remoteHash:
 				result.UnchangedFiles = append(result.UnchangedFiles, relativePath)
-				state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+				state.Files[entry.RelPath] = stateFileInfo{SyncedSHA256: remoteHash}
 			case localHash == fileState.SyncedSHA256:
 				if err := writeContent(targetPath, remoteContent); err != nil {
-					return Result{}, fmt.Errorf("writing %s: %w", entry.Name, err)
+					return Result{}, fmt.Errorf("writing %s: %w", entry.RelPath, err)
 				}
 				result.UpdatedFiles = append(result.UpdatedFiles, relativePath)
-				state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+				state.Files[entry.RelPath] = stateFileInfo{SyncedSHA256: remoteHash}
 			case opts.Force:
 				if err := writeContent(targetPath, remoteContent); err != nil {
-					return Result{}, fmt.Errorf("writing %s: %w", entry.Name, err)
+					return Result{}, fmt.Errorf("writing %s: %w", entry.RelPath, err)
 				}
 				result.UpdatedFiles = append(result.UpdatedFiles, relativePath)
-				state.Files[entry.Name] = stateFileInfo{SyncedSHA256: remoteHash}
+				state.Files[entry.RelPath] = stateFileInfo{SyncedSHA256: remoteHash}
 			default:
 				reason := "local edits detected"
 				if remoteHash != fileState.SyncedSHA256 {
@@ -208,7 +209,28 @@ func withDefaults(opts Options) Options {
 }
 
 func listRemoteSkillFiles(opts Options) ([]contentEntry, error) {
-	url := strings.TrimRight(opts.APIBaseURL, "/") + "/repos/" + opts.Owner + "/" + opts.Repo + "/contents/" + skillsAPIPath + "?ref=" + opts.Ref
+	filtered, err := listRemoteSkillFilesAt(opts, "")
+	if err != nil {
+		return nil, err
+	}
+
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("no skill files found in %s/%s %s at %s", opts.Owner, opts.Repo, skillsAPIPath, opts.Ref)
+	}
+
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].RelPath < filtered[j].RelPath
+	})
+
+	return filtered, nil
+}
+
+func listRemoteSkillFilesAt(opts Options, relDir string) ([]contentEntry, error) {
+	apiPath := skillsAPIPath
+	if relDir != "" {
+		apiPath += "/" + relDir
+	}
+	url := strings.TrimRight(opts.APIBaseURL, "/") + "/repos/" + opts.Owner + "/" + opts.Repo + "/contents/" + apiPath + "?ref=" + opts.Ref
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating GitHub contents request: %w", err)
@@ -237,25 +259,29 @@ func listRemoteSkillFiles(opts Options) ([]contentEntry, error) {
 
 	filtered := make([]contentEntry, 0, len(entries))
 	for _, entry := range entries {
-		if entry.Type != "file" {
-			continue
-		}
 		if strings.HasPrefix(entry.Name, ".") {
 			continue
 		}
-		if entry.DownloadURL == "" {
-			return nil, fmt.Errorf("GitHub contents entry for %s is missing a download_url", entry.Name)
+		relPath := filepath.ToSlash(filepath.Join(relDir, entry.Name))
+
+		switch entry.Type {
+		case "file":
+			if entry.DownloadURL == "" {
+				return nil, fmt.Errorf("GitHub contents entry for %s is missing a download_url", relPath)
+			}
+			entry.RelPath = relPath
+			filtered = append(filtered, entry)
+		case "dir":
+			if relPath == "overrides" {
+				continue
+			}
+			nested, err := listRemoteSkillFilesAt(opts, relPath)
+			if err != nil {
+				return nil, err
+			}
+			filtered = append(filtered, nested...)
 		}
-		filtered = append(filtered, entry)
 	}
-
-	if len(filtered) == 0 {
-		return nil, fmt.Errorf("no top-level skill files found in %s/%s %s at %s", opts.Owner, opts.Repo, skillsAPIPath, opts.Ref)
-	}
-
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].Name < filtered[j].Name
-	})
 
 	return filtered, nil
 }

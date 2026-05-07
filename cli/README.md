@@ -76,7 +76,7 @@ From inside a project that already has `.project-kb/`:
 atami kb skills pull
 ```
 
-This command fetches the canonical top-level Markdown files from `project-kb/skills/` in the shared repo and writes them into `.project-kb/skills/`. It does not modify `.project-kb/skills/overrides/`.
+This command fetches the canonical files from `project-kb/skills/` in the shared repo, including shared assets such as HTML templates, and writes them into `.project-kb/skills/`. It does not modify `.project-kb/skills/overrides/`.
 
 The command stores sync state in `.project-kb/.atami/kb-skills-state.json` and uses that to detect hand-edits to previously synced files. If a synced file has been edited locally, it is skipped by default and reported in the command summary. To overwrite those local edits intentionally:
 
